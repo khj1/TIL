@@ -2,6 +2,12 @@
 ### `$ git add <파일이름>`
 Working directory -> Staging Area
 
+### 첫 커밋 취소하기
+```
+git update-ref -d HEAD
+git rm --cached -r .
+```
+
 <br>
 
 ### `$ git commit`
