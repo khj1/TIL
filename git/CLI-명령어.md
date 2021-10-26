@@ -117,6 +117,9 @@ to unstage
 
 <br>
 
+### `$ git push --set-upstream origin main`
+- 로컬 저장소와 원격 저장소를 동기화 해주는 작업
+
 ### `$ git push -u origin master`
 - 내 로컬 저장소의 내용을 원격 저장소에 저장할때 `push` 한다.
 - `-u` 디폴트 설정
