@@ -1,10 +1,41 @@
+## Branch
+
+동일한 소스코드를 기반으로 서로 다른 작업을 수행하기 위한 각자의 독립적인 공간이다.
+
+```git
+git branch step1
+git switch step1
+```
+- step1 브랜치를 생성하고 step1 브랜치로 이동한다.
+- 기존의 `git checkout -b step1` 을 사용해도 무방하다.
+
 ## Merge
+
+step1 브랜치에 버그를 수정한 bugFix 브랜치를 합치고 싶다면
+
+```git
+git switch step1
+git merge bugFix
+```
+- step1 브랜치로 이동 후 bugFix 브랜치를 merge 해준다.
+- merge된 내역은 새로운 커밋으로 만들지고 step1 브랜치가 merge 커밋을 가리키게 된다. 
+
+```git
+git switch bugFix
+git merge step1
+```
+- merge가 이루어져도 bugFix 브랜치는 여전히 이전 커밋에 위치했으므로
+- bugFix 브랜치를 최신화 해주는 작업도 필요하다.
 
 git은 서로 다른 작업을 하기 위한 별도의 공간을 생성할 때 브랜치를 생성할 수 있다. 브랜치를 생성한 후 기능 구현을 하고 해당 기능을 main 브랜치에 merge 한다.
 
 ### fast-forward
 
-A 브랜치를 B 브랜치로 merge 할 때, A 브랜치의 커밋이 B 브랜치의 커밋 이후로 온전히 이동하는 것을 fast-forwrd 라고 한다. 즉, my-branch 브랜치를 생성하고 작업이 끝난 다음 master에 merge를 진행할 때까지, master에 어떠한 변경도 없다면 fast-forward merge가 진행된다. fast-forward는 서로 다른 상태를 병합하는 것이 아니고 master를 my-branch 위치로 이동한 해도 되는 상태이기 때문에 별도의 merge를 위한 커밋이 발생하지 않는다.
+A 브랜치를 B 브랜치로 merge 할 때, A 브랜치의 커밋이 B 브랜치의 커밋 이후로 온전히 이동하는 것을 fast-forwrd 라고 한다.
+
+즉, my-branch 브랜치를 생성하고 작업이 끝난 다음 master에 merge를 진행할 때까지, master에 어떠한 변경도 없다면 fast-forward merge가 진행된다. 
+
+fast-forward는 서로 다른 상태를 병합하는 것이 아니고 master를 my-branch 위치로 이동한 해도 되는 상태이기 때문에 별도의 merge를 위한 커밋이 발생하지 않는다.
 
 다시 말해 master 브랜치에 my-branch를 merge할 때 my-branch가 master 이후 커밋을 가리키고 있으면 그저 master를 my-branch와 동일한 커밋을 가리키도록 이동시킬 뿐이다.
 
@@ -48,6 +79,20 @@ Squash는 여러 개의 커밋을 하나로 합치는 기능을 말한다. 머�
 Squash and Merge 전략은 브랜치의 자잘한 커밋 사항이 남지 않기 때문에 Merge가 되었다는 사실 자체에만 집중한 기록이 남게되고, 그로 인해 변경 사항을 읽기가 수월해진다.
 
 ## Rebase
+
+마찬가지로 step1 브랜치에 bugFix 브랜치를 합치고 싶다. 현재 브랜치는 bugFix 브랜치이다.
+
+```git
+git rebase step1
+git switch step1
+git rebase bugFix
+```
+- rebase 시켜주면 bugFix 브랜치의 커밋이 step1의 커밋 이후로 이동한다.
+- 기존 main 브랜치가 bugFix의 base 였지만 rebase 시켜줌으로써 step1 브랜치를 새로운 base로 삼는다는 뜻이다.
+- 단 기존 bugFix의 커밋이 제거되는 것이 아니라 단순히 base를 이동시킬 뿐이다.
+- 이후 step1 브랜치를 다시 bugFix 브랜치로 rebase해주면 bugFix 브랜치와 step1 브랜치가 같은 커밋을 가리키게 된다.
+
+Merge는 두 브랜치가 합쳐지는 과정까지 전부 커밋 히스토리에 기록이된다.(Merge가 새로운 커밋을 생성하기 때문에!) 반면 Rebase는 기록이 생성되진 않지만 커밋 로그가 훨씬 깔끔해보이도록 만든다는 장점이 있다.
 
 - Merge와의 공통점: 브랜치를 합친다.
 - Merge와의 차이점: Merge보다 깨끗한 commit history를 만든다.
@@ -104,4 +149,5 @@ Cherry-pick 진행 시 충돌이 발생한다면?
 
 ## 출처
 - [10분 테코톡 - 오리와 코린의 Merge, Rebase, Cherry-pick](https://www.youtube.com/watch?v=b72mDco4g78)
+- [10분 테코톡 - 와일더의 Git Commands](https://www.youtube.com/watch?v=JsRD2AWxxFg)
 - [3-way-merge 이해하기](https://wonyong-jang.github.io/git/2021/02/05/Github-Merge.html)
