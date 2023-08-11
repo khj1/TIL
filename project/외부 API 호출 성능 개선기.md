@@ -44,6 +44,8 @@ private MatchDto requestMatchHistory(final String matchId) {
 
 WebClient는 비동기, 논블로킹 방식을 지원하는 것이 맞다. 하지만 사용 방식에 따라 WebClient로 동기 방식으로 작업을 처리할 수도 있었는데, 내가 작성한 코드가 비동기 방식이 아닌 순차적으로 API를 호출하도록 만들어져있었다.
 
+> 웹플럭스에서는 기본적으로 논블로킹 처리되지만 SpringMVC 환경에서 사용시에는 논블로킹 처리를 수동으로 구성해줘야 한다고 한다.
+
 ## 1차 개선 시도(실패)
 
 ### 수정 후
@@ -100,7 +102,16 @@ private Mono<MatchDto> requestMatchMono(final String matchId) {
 > **Mono vs Flux** <br />
 > Mono와 Flux 모두 Reactor Stream의 **Publisher** 역할을 한다.
 > <br/> **Mono**는 0\~1개의 데이터를 전달한다.
-> <br/> **Flux**는 0\~N개의 데이터를 전달한다. 
+> <br/> **Flux**는 0\~N개의 데이터를 전달한다. </br>
+> <br/> **bodyToFlux()** 는 0\~N개의 데이터를 전달 받는다. 단 응답 헤더의 `Content-Type`이 `application/stream+json`인 경우에 의도한 대로 응답 값을 받아올 수 있다. <br/>
+> <br/> **application/json**
+> <br/> [{"value":0},{"value":1},{"value":2},{"value":3}] <br/>
+> <br/> **application/stream+json**
+> <br/> {"value":0}
+<br/>{"value":1}
+<br/>{"value":2}
+<br/>{"value":3}
+
 
 위와 같이 코드를 수정한 후 정상적인 결과물을 얻을 수 있었다. 결과적으로 대아토룰 10건 조회할 때의 성능을 약 5배 향상시켰다.
 
