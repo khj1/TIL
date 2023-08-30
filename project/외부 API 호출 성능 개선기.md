@@ -74,9 +74,9 @@ WebClient로 동기 작업을 하고싶으면 block() 메서드를 사용하면 
 따라서 수정한 코드는 요청을 우선 모두 보내놓고 응답을 받지도 않은 채 빈 리스트를 반환해버린 것이다.
 
 ## 2차 개선 시도(성공)
-내가 원한 것은 10건의 API 요청을 비동기적으로 처리하면서 각 요청에 대한 응답을 하나의 리스트로 반환하는 것이었다. 따라서 기존에 사용했던 block()을 다시 활용하기로 했다. block()은 WebClient를 동기적으로 처리하도록 도와준다. 따라서 비동기 요청을 보낼 수만 있다면 모든 응답을 하나의 리스트로 받아온 뒤 정상적인 데이터로 다음 작업을 수행할 수 있게 되는 것이다.
+내가 원한 것은 10건의 API 요청을 비동기적으로 처리하면서 각 요청에 대한 응답을 하나의 리스트로 반환하는 것이었다. 따라서 기존에 사용했던 `block()`을 다시 활용하기로 했다. `block()`은 WebClient를 동기적으로 처리하도록 도와준다. 따라서 비동기 요청을 보낼 수만 있다면 모든 응답을 하나의 리스트로 받아온 뒤 정상적인 데이터로 다음 작업을 수행할 수 있게 되는 것이다.
 
-여기서 문제는 HTTP 요청을 비동기적으로 처리하는 것이다. 이를 위해 Reactor의 flatMap()을 활용했다. n개의 요소를 JavaDoc에 따르면 flatMap()은 비동기적으로 연산하고, map()은 동기적으로 연산한다.
+여기서 문제는 HTTP 요청을 비동기적으로 처리하는 것이다. 이를 위해 Reactor의 `flatMap()`을 활용했다. JavaDoc에 따르면 `flatMap()`은 n개의 요소를 비동기적으로 연산하고, `map()`은 동기적으로 연산한다.
 
 ```java
 private List<MatchDto> requestMatchHistories(final String[] matchIds) {
@@ -98,20 +98,7 @@ private Mono<MatchDto> requestMatchMono(final String matchId) {
     }
 }
 ```
-
-> **Mono vs Flux** <br />
-> Mono와 Flux 모두 Reactor Stream의 **Publisher** 역할을 한다.
-> <br/> **Mono**는 0\~1개의 데이터를 전달한다.
-> <br/> **Flux**는 0\~N개의 데이터를 전달한다. </br>
-> <br/> **bodyToFlux()** 는 0\~N개의 데이터를 전달 받는다. 단 응답 헤더의 `Content-Type`이 `application/stream+json`인 경우에 의도한 대로 응답 값을 받아올 수 있다. <br/>
-> <br/> **application/json**
-> <br/> [{"value":0},{"value":1},{"value":2},{"value":3}] <br/>
-> <br/> **application/stream+json**
-> <br/> {"value":0}
-<br/>{"value":1}
-<br/>{"value":2}
-<br/>{"value":3}
-
+> 💡 [Mono와 Flux는 어떤 차이가 있을까?](WebClient.md)
 
 위와 같이 코드를 수정한 후 정상적인 결과물을 얻을 수 있었다. 결과적으로 대아토룰 10건 조회할 때의 성능을 약 5배 향상시켰다.
 
@@ -122,12 +109,12 @@ private Mono<MatchDto> requestMatchMono(final String matchId) {
 ![](../img/after_performance_upgrade.png)
 
 
-## 또 다른 성능 개선 방법 - parellelStream()
-Reactor의 flatMap(), map()을 살펴보면서 Java Stream API의 map()이 떠올랐다. 성능 개선 이전 코드에선 반환받은 MatchID를 map()으로 순회하면서 라이엇 서버에 매치 세부 정보 요청을 보냈었다. 그런데 Stream API에 parellelStream()이라는 메서드가 있었다.
+## 또 다른 성능 개선 방법 - `parellelStream()`
+Reactor의 `flatMap()`, `map()`을 살펴보면서 Java Stream API의 `map()`이 떠올랐다. 성능 개선 이전 코드에선 반환받은 MatchID를 `map()`으로 순회하면서 라이엇 서버에 매치 세부 정보 요청을 보냈었다. 그런데 Stream API에 `parellelStream()`이라는 메서드가 있었다.
 
-> 이 시점에서 기존에 발생했던 성능 문제가 WebClient를 사용하는 방식보다도 Stream API에 대한 이해도가 부족했기 때문이었음을 깨달았다.
+> 이 시점에서 기존에 발생했던 성능 문제가 WebClient를 사용하는 방식보다도 Stream API에 대한 이해도 부족에서 비롯된 것임을 깨달았다.
 
-기존 stream()은 순차적으로 작업을 진행하는 방식이라면 parellelStream()은 한마디로 병렬처리하는 것이다. parellelStream()을 활용하면 MatchID를 기존에 내가 원했던 대로 동시에 보낼 수 있었다.
+기존 `stream()`은 순차적으로 작업을 진행하는 방식이라면 `parellelStream()`은 한마디로 병렬처리하는 것이다. `parellelStream()`을 활용하면 MatchID를 기존에 내가 원했던 대로 동시에 보낼 수 있었다.
 
 ```java
 private List<ParticipantDto> extractParticipantsBy(final String puuid, final List<String> matchIds) {
@@ -139,14 +126,16 @@ private List<ParticipantDto> extractParticipantsBy(final String puuid, final Lis
 }
 ```
 
-실제로 stream()을 parellelStream()으로 바꿔주기만 했는데도 성능 개선이 이루어졌다. Reactor의 flatMap()을 활용한 코드와 성능 차이가 많이 나지 않았다.
+실제로 stream()을 `parellelStream()`으로 바꿔주기만 했는데도 성능 개선이 이루어졌다. Reactor의 `flatMap()`을 활용한 코드와 성능 차이가 많이 나지 않았다.
+
+> `map()`을 실행할 때마다 새로운 객체가 생성된다고 한다. 이는 성능 저하의 원인이 될 수 있으므로 여러개의 `map()`에서 이루어지는 작업을 하나의 `map()`에 통일하면 더 나은 성능을 기대할 수 있다.
 
 ### parellelStream() 사용시 유의사항
 - 스트림 병렬화가 반드시 병렬 처리를 보장하는 것은 아니다.
   - 기기의 프로세서 수에 의존한다.
 - 내부적으로 공유된 가변 상태를 가져선 안된다.
   - 공유된 가변 자원에 동시에 접근하기 때문에 충돌이 의도치 않은 결과가 발생할 수 있다.
-- findFirst()나 limit()처럼 요소 순서에 의존하는 연산을 사용하면 오히려 성능이 악화된다.
+- `findFirst()`나 `limit()`처럼 요소 순서에 의존하는 연산을 사용하면 오히려 성능이 악화된다.
 - 스트림의 소스가 ArrayList, HashMap, HashSet, ConcurrentHashMap, 배열 intRange, longRange 일 때 스트림 병렬화의 효과가 극대화된다.
   - 데이터를 원하는 크기만큼 정확하고 손쉽게 나눌 수 있다.
   - LinkedList의 경우 원하는 대로 분할하기 위해선 모든 요소를 탐색해야한다.
@@ -158,8 +147,6 @@ private List<ParticipantDto> extractParticipantsBy(final String puuid, final Lis
 
 ### 얕은 지식, 잘못된 응용
 이번 성능 이슈의 근본적인 원인은 얕은 지식에서 비롯된 잘못된 기능 구현이었다. WebClient는 그렇다 치더라도 Stream API는 평소에도 손에 익을 정도로 자주 사용했는데, 어떤 식으로 동작하는지 어떤 상황에 유의해야하는 지 모른채 그냥 사용해왔던 것이 문제였다.
-
-> map()을 사용할 때 마다 새로운 객체가 생성된다는 것도 이번에 처음 알게됐다. map()을 여러번 사용하는 것도 성능 이슈의 원인이 될 수 있다.
 
 사실 모든 기술을 사용전에 완벽하게 이해하고 접목시키는 것은 현실적으로 힘들다고 생각한다. 지금처럼 우선 활용부터 해보고 이후에 내부 원리에 대해 이해하는 것이 학습 동기도 마련해줘서 좋은 것 같다. 다만 기본적인 동작 방식이나 주의 사항 정도는 파악하는 것도 좋아보인다.
 
