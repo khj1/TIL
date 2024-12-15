@@ -471,7 +471,7 @@
 
 - 부모 프로세스가 자식 프로세스를 생성한다. (복제 생성)
     - 여기서 복제란 프로세스 문맥을 그대로 복사한다는 뜻이다.
-- 프로세스의 트리(게층 구조)형성
+- 프로세스의 트리(계층 구조)형성
 - 프로세스는 자원을 필요로 한다.
     - 운영 체제로부터 받는 자원
     - 부모와 공유하는 자원
@@ -570,7 +570,7 @@ public static void main(String[] args) {
 ```
 
 - `exec()` 시스템 콜은 반드시 `fork()` 이후에만 사용되야하는 것은 아니다.
-- `exec()` 시스템 콜만 호출할 수 있다.
+    - `exec()` 시스템 콜만 호출할 수도 있다.
 - `exec()` 이후의 코드는 영원히 실행될 수 없다. 새로운 프로그램으로 완전히 덮혀씌워지기 때문.
 
 ### wait() 시스템 콜
@@ -618,10 +618,10 @@ public static void main(String[] args) {
 
 ## CPU Scheduling 은 왜 필요한가?
 
-- I/O bound job
+- **I/O bound job**
     - CPU 를 사용하기 보다는 I/O 작업 비중이 높은 경우
     - many short CPU bursts
-- CPU bound job
+- **CPU bound job**
     - I/O 작업보다는 CPU 를 사용한 순수 연산의 비중이 높은 경우
     - few very long CPU bursts
 - 여러 종류의 job(=process) 이 섞여있기 때문에 CPU 스케쥴링이 필요하다.
@@ -630,19 +630,89 @@ public static void main(String[] args) {
 
 ## CPU Scheduler, Dispatcher
 
-- CPU Scheduler
+- **CPU Scheduler**
     - Ready 상태의 프로세스 중에서 이번에 CPU 를 줄 프로세스를 고른다.
     - CPU Scheduler 는 운영체제 안에서 스케쥴링을 담당하는 코드다.
-- Dispatcher
+- **Dispatcher**
     - CPU 제어권을 스케쥴러에 의해 선택된 프로세스에게 넘긴다.
     - 이 과정을 context switch 라고 한다.
 - 스케쥴링의 종류
-    - nonpreemptive
+    - **nonpreemptive**
         - CPU 를 강제로 빼앗지 않고 프로세스가 자진 반납한다.
             - I/O 요청 시스템 콜을 호출했을 때 (Running -> Blocked)
             - 프로세스가 Terminate 됐을 때
-    - preemptive
+    - **preemptive** (선점형)
         - CPU 제어권을 강제로 빼았는다.
             - Timer interrupt (Running -> Ready)
             - I/O 완료 후 Interrupt (Blocked -> Ready)
 
+## Scheduling Criteria
+
+- 시스템 입장에서의 성능 척도
+    - **CPU utilization**(이용률)
+        - 전체 시간중에 CPU 가 놀지 않고 일한 시간
+    - **Throughput**(처리량)
+        - 주어진 시간동안 몇 개의 작업을 완료했는가
+- 프로그램(고객) 입장에서의 성능 척도
+    - **Turnaround time**(소요 시간)
+        - CPU 를 쓰러 들어와서 다 쓸 때까지 걸린 시간 (대기 시간도 포함한다)
+    - **Waiting time**(대기 시간)
+        - CPU 를 받기위해 Ready Queue 에서 기다린 시간
+    - **Response time**(응답 시간)
+        - Ready Queue 에 들어와서 최초로 CPU 를 얻기까지 걸린 시간
+    - Waiting vs Response
+        - 선점형 스케쥴러의 경우 프로세스가 CPU 를 사용하다가도 스케쥴러에 의해 CPU 제어권을 뺏기고, 다시 CPU 제어권을 받는 일을 반복한다.
+        - Waiting time 은 CPU 를 받기위해 기다린 모든 시간을 합친 것이다.
+        - Response time 은 가장 처음 Ready Queue 에 들어와서 CPU 를 받기위해 기다린 시간만을 의미한다.
+
+## Scheduling Algorithm
+
+### FCFS (First-Come First-Serve)
+
+- 먼저 온 프로세스가 먼저 CPU 제어권을 갖도록 한다.
+- nonpreemptive 한 스케쥴링 방법이다.
+    - 공정하지만 비효율적이다.
+- P1, P2, P3 의 CPU burst time 을 각 24, 3, 3 이라고 가정해보자
+    - Waiting time -> `P1 = 0`, `P2 = 24`, `P3 = 27`
+        - `P1` 의 Turnaround time 은 24 다.
+    - Average Waiting time = 17
+- 프로그램의 도착 시간을 바꿔보자
+    - Waiting time -> `P2 = 0`, `P3 = 3`, `P1 = 6`
+    - Average Waiting time = 3
+- **Convoy effect**
+    - short process behinds long process
+
+### SJF (Shortest Job First)
+
+- 각 프로세스의 다음번 CPU burst time 을 가지고 스케쥴링에 활용한다.
+- Nonpreemptive
+    - 한번 CPU 를 잡으면 중간에 뺏지 않고 작업이 끝날 때 까지 대기한다.
+- Preemptive
+    - 작업을 수행하다가 더 짧은 CPU burst time 을 가진 프로그램이 도착하면 중간에 CPU 제어권을 뺏는다.
+    - 이러한 방법을 SRJF (Shortest Remaining Job First)라고 한다.
+    - SRJF 가 SJF 보다 더 효율적인 전략이다.
+- Minimum average waiting time 을 보장한다.
+- 하지만 SJF 엔 두 가지 문제점이 있다.
+    - **Starvation**
+        - CPU burst time(CPU 사용 시간)이 긴 작업의 우선 순위가 영원히 밀려서 처음 스케쥴러에 도착했어도 영영 작업을 끝내지 못할 수 있다.
+    - **CPU burst time 의 정확한 예측이 불가능하다.**
+        - 과거의 CPU 사용 시간을 토대로 추정은 할 수 있다.
+        - 추정은 exponential averaging 공식을 사용한다.
+
+### Priority Scheduling
+
+- 우선순위가 가장 높은 프로세스에게 CPU 를 준다.
+    - 각 프로세스에게 priority number 를 부여한다.
+    - priority number 가 작을수록 priority 가 높다.
+- SJF 도 일종의 Priority Scheduling 방식이다.
+- Starvation 문제가 있다.
+    - 이 문제를 해결하기 위해 `Aging` 기법을 사용한다.
+    - 시간이 지날 수록 priority 값이 증가하도록 설계한다.
+
+### RR (Round Robin)
+
+- 각 프로세스는 동일한 할당 시간(time quantum)을 가진다.
+- 할당 시간이 지나면 프로세스는 선점당하고 Ready Queue 의 제일 뒤에서 대기한다.
+- 할당 지나치게 시간을 크게 설정하면 FCFS 방식이 되어버린다.
+- 할당 지나치게 시간을 작게 설정하면 conext switc 오버헤드가 너무 커진다.
+- RR 방식은 SJF 방식보다 average turnaround time 은 길지만, response time(최초로 CPU 를 얻기 위해 대기한 시간) 은 더 짧다.
