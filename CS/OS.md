@@ -882,7 +882,7 @@ public static void main(String[] args) {
 
 ### Semaphore
 
-- 임계 영역에 아무런 프로세스가 없을 때 락을 걸고 임계 영역에 접근하는 방식을 추상화 한 알고리즘이다.
+- 임계 영역에 아무런 프로세스가 없을 때 락을 걸고 임계 영역에 접근하는 방식을 추상화 한 자료구조다.
 - 세마포어는 정수형 변수와 두 가지 연산으로 이루어져있다.
     - 세마 포어는 카운터 변수를 기반으로 동작하며 동시에 접근할 수 있는 임계 영역의 수를 제한한다.
 - S 는 공유 자원의 갯수다.
@@ -898,6 +898,8 @@ public static void main(String[] args) {
 
 ### Block & Wake-Up (Sleep Lock)
 
+- 초기 Spin Lock 형태로 구현되었던 Semaphore 방식의 Busy-wait 문제를 해결하기 위해 Block & Wake-Up 방식이 도입되었다.
+    - 그러나 Lock 유지 시간이 매우 짧은 경우 여전히 스핀락을 사용하기도 한다.
 - Block
     - 커널은 block 을 호출한 프로세스를 suspend 시킨다.
     - 이 프로세스의 PCB 를 semaphore 에 대한 wait queue 에 넣는다.
@@ -950,4 +952,206 @@ public void v() {
 
 > 세마포어를 획득한다는 것은 공유 자원에 접근할 권리를 얻는다는 뜻이다.
 
+## Synchronization problem of critical section
 
+### Bounded-Buffer Problem(Producer-Consumer Problem)
+
+- 제한된 크기의 공유 버퍼에 생산자와 소비자가 공유 자원을 생산하거나 소비할 때의 상황을 다룬다.
+- 생산자는 공유 버퍼에 공유 자원을 추가하는 역할을 한다.
+- 소비자는 공유 버퍼에서 공유 자원을 가져다 사용하는 역할이다.
+- 공유 버퍼가 가득 차버리면 생산자가 버퍼에 접근하더라도 공유 자원을 추가할 수 없다. 공유 버퍼에 자리가 생길 때 까지 기다려야 한다.
+    - Empty 버퍼가 있는지 확인하고 없으면 기다린다.
+    - 버퍼에 자리가 생기면 공유 데이터에 lock 을 건다.
+    - 버퍼에 데이터를 추가한다. (버퍼 조작)
+    - lock 을 푼다.
+    - full buffer 하나 증가. (소비자를 깨우는 역할)
+- 공유 버퍼가 비어버리면 소비자가 버퍼에 접근하더라도 공유 자원을 소비할 수 없다. 공유 버퍼에 자원이 추가될 때 까지 기다려야 한다.
+    - full buffer 가 있는지 확인하고 없으면 기다린다.
+    - 버퍼에 데이터가 추가되면 공유 데이터에 lock 을 건다.
+    - 버퍼에서 데이터를 소비한다. (버퍼 조작)
+    - lock 을 푼다.
+    - empty buffer 하나 증가. (생산자를 깨우는 역할)
+- 실제 생산자-소비자 문제가 발생하는 예시
+    - 웹 브라우저와 동영상 스트리밍 서버
+        - 네트워크 속도가 너무 느리면 브라우저는 버퍼에 있는 스트리밍 데이터를 모두 소진하고 영상 재생이 멈출 수 있다.
+        - 네트워크 속도가 너무 빠르면 브라우저 버퍼가 가득 차서 스트리밍 서버가 데이터를 전송할 수 없게 된다.
+    - 프린터와 여러 응용 프로그램 간의 관계
+    - 웹 서버와 DB
+        - 웹 서버의 요청이 너무 많아지면 DB 가 요청을 처리하는 속도가 느려질 수 있다.
+        - DB 가 빠르게 처리하더라도 웹 서버로 부터의 요청이 적으면 리소스를 낭비하게 된다.
+    - 로그 파일 생성기와 로그 분석기
+
+### Readers-Writers Problem
+
+- 한 프로세스가 DB 에 write 중일 때 다른 프로세스가 접근하면 안된다.
+- read 는 동시에 여럿이 해도 된다.
+    - 생산자-소비자 문제와의 차이점이다. 생산자-소비자 문제는 생산, 소비 과정에 모두 동기화가 필요했다.
+- 해결 방법
+    - Writer 가 DB 에 접근 허가를 아직 얻지 못한 상태에서는 모든 대기중인 Reader 들을 다 DB 에 접근하게 해준다.
+    - Writer 는 대기중인 Reader 가 하나도 없을 때 DB 접근이 허용된다.
+    - 일단 Writer 가 DB 에 접근 중이면 Reader 들은 접근이 금지된다.
+    - Writer 가 DB 에서 빠져나가야만 Reader 의 접근이 허용된다.
+- 공유 자원
+    - DB
+    - readCount (현재 DB 에 접근 중인 Reader 의 수)
+- Synchronization variables (binary semaphore)
+    - mutex
+        - 공유 변수 readCount 를 접근하는 코드
+    - db
+        - reader 와 writer 가 공유 DB 자체를 올바르게 접근하게 만드는 역할
+        - 최초로 DB 에 접근한 reader 가 P(db)로 DB 에 락을 건다.
+        - 마지막 reader 가 DB 에서 빠져나가려할 때 V(db)로 DB 에 걸린 락을 푼다.
+
+```
+Reader 입장
+
+P(mutex); //readCount 는 공유 자원이기 때문에 동기화 작업이 필요하다.
+readCount++;
+if (readCount == 1) {
+    P(db);
+}
+V(mutex);
+
+~
+
+P(mutex);
+readCount--;
+if (readCount == 0) {
+    V(db);
+}
+V(mutex);
+```
+
+> reader 가 P(mutex) 를 진행하는 동안 writer 가 P(db)를 먼저 해버리면, reader 는 P(db)를 수행하는 과정에 block 되어버린다.
+
+### Dining-Philosophers Problem
+
+- 원탁에서 식사를 하려는 철학자들이 있는 상황이다.
+- 식사를 하기 위해선 오른쪽 젓가락과 왼쪽 젓가락이 모두 필요한데, 젓가락은 공유 자원이다.
+- A 철학자가 왼쪽 젓가락을 보유한 채 오른쪽 젓가락을 가져오기 위해 대기한다.
+- B 철학자가 오른쪽 젓가락을 보유한 채 왼쪽 젓가락을 가져오기 위해 대기한다.
+- 이러면 Deadlock 이 발생한다.
+- 해결 방안
+    - 젓가락이 각각 5개 씩이라면 식탁에 4명의 철학자만 앉을 수 있게 한다.
+    - 또는 양쪽 젓가락을 모두 짚을 수 있는 상황에만 젓가락을 짚을 수 있게 만든다.
+    - 또는 짝수 철학자는 왼쪽 젓가락 부터, 홀수 철학자는 오른쪽 젓가락 부터 짚도록 젓가락 획득 순서를 정한다.
+
+## Monitor
+
+- Semaphore 의 문제점
+    - 코딩하기가 힘들다.
+    - 자발적 협력이 필요하다.
+    - 한번의 실수가 모든 시스템에 치명적인 영향을 미친다.
+        - P 연산 이후 V 연산을 진행해야 하는데 V 연산 이후 P 연산을 하도록 잘못 코딩한 상황
+    - 이렇게 실수를 했을 때 검증하는 작업을 하기가 힘들다.
+- Monitor 는 동시 수행중인 프로세스 사이에서 abstract data type 의 안전한 공유를 보장하기 위한 high-level synchronization construct 이다.
+- Monitor 는 모니터 내부에 공유 데이터와 공유 데이터에 접근하기 위한 프로시저를 내부에 정의하고 있다.
+- 모니터 내에서는 한번에 하나의 프로세스만이 활동할 수 있다.
+    - 모니터에 접근하는 순간 자동으로 (모니터에 접근하기 위한)락이 걸리고 나가는 순간 자동으로 락이 풀린다.
+- 따라서 세마포어 방식과 달리 개발자가 명시적으로 lock 을 관리할 필요가 없다.
+    - 프로그래머가 동기화 제약 조건을 명시적으로 코딩할 필요가 없다.
+- 프로세스가 모니터 안에서 기다릴 수 있도록 하기 위해 condition variable 을 사용한다.
+- condition variable 은 wait 과 signal 연산에 의해서만 접근할 수 있다.
+    - condition variable x 에 대해 `x.wait()` 을 호출한 프로세스는 다른 프로세스가 `x.signal()` 을 invoke 하기 전까지 suspend 된다.
+    - `x.signal()`은 정확하게 하나의 suspend 된 프로세스를 resume 한다.
+    - suspend 된 프로세스가 하나도 없다면 아무일도 일어나지 않는다.
+    - condition variable 은 자바에서의 `ReentrantLock`, `Condition` 을 생각하면 된다.
+    - condition variable 은 값을 가지지 않고, 자신의 큐에 프로세스를 메달아서 sleep 시키거나 큐에서 프로세스를 깨우는 역할을 한다.
+
+> 모니터는 주로 객체 지향 프로그램에서 지원하는 방식이고, 프로그램 마다 모니터가 구현되는 방식은 상이할 수 있다.
+
+### 자바 코드로 철학자 문제 이해하기 - Monitor 방식
+
+- 철학자들은 원탁에 앉아있다.
+- 각 철학자는 양쪽에 있는 포크(리소스)를 사용해야 한다.
+- 철학자가 포크를 잡으려면 좌측과 우측의 포크를 모두 사용할 수 있어야 한다.
+- 식사를 마치면 포크를 내려놓아 다른 철학자가 사용할 수 있도록 한다.
+- 모니터를 활용하여 동기화를 관리하며 각 철학자의 상태를 추적한다.
+    - THINKING, HUNGRY, EATING
+- 철학자가 식사하려면 자신과 양 옆의 철학자가 모두 THINKING 상태여야 한다.
+- 조건을 만족하지 않으면 대기(wait()), 조건이 만족되면 식사(notify())
+
+```java
+class DiningPhilosophersMonitor {
+    private enum State {THINKING, HUNGRY, EATING}
+
+    private final State[] states;
+    private final int numPhilosophers;
+
+    public DiningPhilosophersMonitor(int numPhilosophers) {
+        this.numPhilosophers = numPhilosophers;
+        states = new State[numPhilosophers];
+        for (int i = 0; i < numPhilosophers; i++) {
+            states[i] = State.THINKING;
+        }
+    }
+
+    public synchronized void pickUpForks(int philosopherId) throws InterruptedException {
+        states[philosopherId] = State.HUNGRY;
+        test(philosopherId);
+        while (states[philosopherId] != State.EATING) {
+            wait();
+        }
+    }
+
+    public synchronized void putDownForks(int philosopherId) {
+        states[philosopherId] = State.THINKING;
+        test((philosopherId + numPhilosophers - 1) % numPhilosophers); // Test left neighbor
+        test((philosopherId + 1) % numPhilosophers); // Test right neighbor
+    }
+
+    private void test(int philosopherId) {
+        int left = (philosopherId + numPhilosophers - 1) % numPhilosophers;
+        int right = (philosopherId + 1) % numPhilosophers;
+        if (states[philosopherId] == State.HUNGRY &&
+                states[left] != State.EATING &&
+                states[right] != State.EATING) {
+            states[philosopherId] = State.EATING;
+            notifyAll(); // Notify threads waiting for forks
+        }
+    }
+}
+```
+
+- 자신의 상태와 양쪽 이웃의 상태를 확인하여 리소스를 얻기 때문에 Deadlock 을 회피할 수 있다.
+
+## Deadlock Problem
+
+- 일련의 프로세스들이 서로가 가진 자원을 기다리며 block 된 상태를 의미한다.
+- 여기서의 자원은 하드웨어, 소프트웨어 자원을 모두 포함한다.
+
+### 데드락이 발생하는 조건
+
+- **Mutual Exclusion**
+    - 매 순간 하나의 프로세스만이 자원을 사용할 수 있음
+- **No preemption**
+    - 프로세스는 자원을 스스로 내어놓을 뿐 강제로 빼앗기지 않는다.
+- **Hold and wait**
+    - 자원을 가진 프로세스가 다른 자원을 기다릴 때 보유 자원을 놓지 않고 계속 가지고 있는 상태
+- **Circular wait**
+    - 자원을 기다리는 프로세스 간에 사이클이 형성되어야 한다.
+    - 자원에 하나의 인스턴스만 있다면 사이클이 형성되었을 때 데드락이 발생한다.
+    - 자원에 여러 개의 인스턴스가 있다면 사이클이 형성되더라도 데드락이 발생하지 않을 수 있다.
+- 위 네가지 조건을 모두 충족해야 데드락이 발생한다.
+
+### 데드락의 처리 방법
+
+- **Deadlock Prevention**
+    - 자원 할당 시 데드락의 4가지 필요 조건 중 어느 하나가 만족되지 않도록 한다.
+        - Hold and wait
+            - 프로세스 시작 시 모든 필요 자원을 할당받게 하는 방법
+            - 자원이 필요할 경우 보유 자원을 내려 놓고 다시 요청하도록 하는 방법
+        - No preemption
+            - process 가 어떤 자원을 기다려야 하는 경우 이미 보유한 자원을 선점한다.
+            - 모든 필요한 자원을 얻을 수 있을 때 그 프로세스는 다시 시작된다.
+            - state 를 쉽게 저장하고 복구할 수 있는 자원에서 주로 사용한다. (CPU, memory)
+        - Circular wait
+            - 모든 자원 유형에 대해 할당 순서를 정해서 정해진 순서대로만 자원을 할당한다.
+    - 하지만 해당 방법은 utilization, throughput 을 감소시키고 starvation 문제를 유발할 수 있다.
+    - 발생하지도 않은 데드락을 미리 예방하기 위해 너무 많은 것을 희생하고 있는 셈이다.
+- **Deadlock Avoidance**
+    - 자원 요청에 대한 부가정보를 이용해서 자원 할당이 deadlock 으로 부터 안전한지를 동적으로 조사하고 안전한 경우에만 자원을 할당한다.
+    - 프로세스가 생성될 때 사용할 수 있는 자원의 총량을 미리 정의하고 시작해서 deadlock 이 발생할 우려가 있다면 재고가 있더라도 자원을 할당하지 않는다.
+    -
+- 데드락이 발생한 후 해결하는 방법
+- 데드락을 무시하는 방법
