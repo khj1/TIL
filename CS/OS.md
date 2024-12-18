@@ -1115,12 +1115,12 @@ class DiningPhilosophersMonitor {
 
 - 자신의 상태와 양쪽 이웃의 상태를 확인하여 리소스를 얻기 때문에 Deadlock 을 회피할 수 있다.
 
-## Deadlock Problem
+# Deadlock
 
 - 일련의 프로세스들이 서로가 가진 자원을 기다리며 block 된 상태를 의미한다.
 - 여기서의 자원은 하드웨어, 소프트웨어 자원을 모두 포함한다.
 
-### 데드락이 발생하는 조건
+## 데드락이 발생하는 조건
 
 - **Mutual Exclusion**
     - 매 순간 하나의 프로세스만이 자원을 사용할 수 있음
@@ -1134,24 +1134,298 @@ class DiningPhilosophersMonitor {
     - 자원에 여러 개의 인스턴스가 있다면 사이클이 형성되더라도 데드락이 발생하지 않을 수 있다.
 - 위 네가지 조건을 모두 충족해야 데드락이 발생한다.
 
-### 데드락의 처리 방법
+## 데드락의 처리 방법
 
-- **Deadlock Prevention**
-    - 자원 할당 시 데드락의 4가지 필요 조건 중 어느 하나가 만족되지 않도록 한다.
-        - Hold and wait
-            - 프로세스 시작 시 모든 필요 자원을 할당받게 하는 방법
-            - 자원이 필요할 경우 보유 자원을 내려 놓고 다시 요청하도록 하는 방법
-        - No preemption
-            - process 가 어떤 자원을 기다려야 하는 경우 이미 보유한 자원을 선점한다.
-            - 모든 필요한 자원을 얻을 수 있을 때 그 프로세스는 다시 시작된다.
-            - state 를 쉽게 저장하고 복구할 수 있는 자원에서 주로 사용한다. (CPU, memory)
-        - Circular wait
-            - 모든 자원 유형에 대해 할당 순서를 정해서 정해진 순서대로만 자원을 할당한다.
-    - 하지만 해당 방법은 utilization, throughput 을 감소시키고 starvation 문제를 유발할 수 있다.
-    - 발생하지도 않은 데드락을 미리 예방하기 위해 너무 많은 것을 희생하고 있는 셈이다.
-- **Deadlock Avoidance**
-    - 자원 요청에 대한 부가정보를 이용해서 자원 할당이 deadlock 으로 부터 안전한지를 동적으로 조사하고 안전한 경우에만 자원을 할당한다.
-    - 프로세스가 생성될 때 사용할 수 있는 자원의 총량을 미리 정의하고 시작해서 deadlock 이 발생할 우려가 있다면 재고가 있더라도 자원을 할당하지 않는다.
-    -
-- 데드락이 발생한 후 해결하는 방법
-- 데드락을 무시하는 방법
+### Deadlock Prevention
+
+- 자원 할당 시 데드락의 4가지 필요 조건 중 어느 하나가 만족되지 않도록 한다.
+    - Hold and wait
+        - 프로세스 시작 시 모든 필요 자원을 할당받게 하는 방법
+        - 자원이 필요할 경우 보유 자원을 내려 놓고 다시 요청하도록 하는 방법
+    - No preemption
+        - process 가 어떤 자원을 기다려야 하는 경우 이미 보유한 자원을 선점한다.
+        - 모든 필요한 자원을 얻을 수 있을 때 그 프로세스는 다시 시작된다.
+        - state 를 쉽게 저장하고 복구할 수 있는 자원에서 주로 사용한다. (CPU, memory)
+    - Circular wait
+        - 모든 자원 유형에 대해 할당 순서를 정해서 정해진 순서대로만 자원을 할당한다.
+- 하지만 해당 방법은 utilization, throughput 을 감소시키고 starvation 문제를 유발할 수 있다.
+- 발생하지도 않은 데드락을 미리 예방하기 위해 너무 많은 것을 희생하고 있는 셈이다.
+
+### Deadlock Avoidance
+
+- 자원 요청에 대한 부가정보를 이용해서 자원 할당이 deadlock 으로 부터 안전한지를 동적으로 조사하고 안전한 경우에만 자원을 할당한다.
+- 프로세스가 생성될 때 사용할 수 있는 자원의 총량을 미리 정의하고 시작해서 deadlock 이 발생할 우려가 있다면 재고가 있더라도 자원을 할당하지 않는다.
+- **Banker`s algorithm**
+    - 프로세스에게 할당된 자원의 갯수 -> Allocation
+    - 프로세스가 최대로 할당받을 수 있는 자원의 갯수 -> Max
+    - 현재 가용한 자원의 갯수 -> Available
+    - Max - Allocation -> Need
+    - 프로세스 P 의 Allocation 이 1, Max 4, Available 2 라고 가정해보자.
+        - 프로세스 P 가 1개의 자원을 요청한다고 했을 때 Available 은 2개 이기 때문에 충분히 자원을 할당해줄 수 있는 상황이다.
+        - 하지만 프로세스 P 가 추후 최대로 요청할 수 있는 자원의 갯수인 Need 가 현재 3으로 Available 을 초과한다.
+        - 이경우 현재 요청엔 데드락이 발생하지 않음에도 미래에 데드락이 발생할 위험이 있으므로 자원을 할당해주지 않는다.
+        - Banker`s Algorithm 은 굉장히 보수적이고 비관적인 방식이다.
+        - 따라서 다른 프로세스가 자원을 반납하여 Available 의 갯수가 늘어나는 것은 차치하고 현재의 Available 만을 기준으로 자원을 배분한다.
+        - 자원이 남아도는 데도 자원을 배분하지 않기 때문에 굉장히 비효율적인 방법이다.
+- **Deadlock graph**(자원 할당 그래프)
+    - 그래프를 통해 데드락의 여부를 확인하는 방법이다.
+
+### Deadlock detection and recovery
+
+#### Detection
+
+- Resource type 당 single instance 인 경우
+    - 자원 할당 그래프에서의 cycle 이 곧 deadlock 을 의미한다.
+- Resource type 당 multiple instance 인 경우
+    - Banker`s algorithm 과 비슷하게 테이블을 활용한 알고리즘을 사용한다.
+- Wait-for graph
+    - Wait-for graph 에 사이클이 존재하는지 주기적으로 조사한다.
+
+#### Recovery
+
+- **Process termination**
+    - 데드락에 연루된 모든 프로세스를 제거하는 방법
+    - 데드락에 연루된 하나의 프로세스를 먼저 종료시켜보고 해결되지 않으면 다른 프로세스를 종료시켜나가는 방법.
+- **Resource Preemption**
+    - 비용을 최소화할 프로세스(victim)를 찾아서 자원을 뺏어오는 방법이다.
+    - 동일한 프로세스가 계속해서 victim 으로 선정되는 경우 starvation 문제가 발생할 수 있다.
+    - starvation 문제를 해결하기 위해 자원을 선점당한 횟수를 고려해서 victim 우선순위를 낮추기도 한다.
+
+### Deadlock Ignorance
+
+- Deadlock 이 일어나지 않는다고 생각하고 아무런 조치도 취하지 않는다.
+- Deadlock 은 매우 드물게 발생하므로 deadlock 에 대한 조치 자체가 더 큰 오버헤드일 수 있다.
+- 대부분의 운영 체제가 Deadlock Ignorance 방식을 채용하고 있다.
+
+# Memory Management
+
+## Logical vs Physical Address
+
+- **Logical Address**(Virtual Address)
+    - 프로세스마다 독립적으로 가지는 주소 공간
+    - 각 프로세스마다 0번지부터 시작한다.
+    - **CPU 가 보는 주소는 Logical Address 다.**
+        - CPU 가 읽는 Instruction 에는 논리적 주소가 사용된다.
+- **Physical Address**
+    - 메모리에 실제 올라가는 위치
+- 주소 바인딩
+    - 주소를 결정하는 것이다.
+    - Symbolic Address -> Logical Address -> Physical Address
+
+> Symbolic Address 는 개발자가 사용하는 주소 값이다. <br/>
+> 개발자는 숫자 값으로 이루어진 메모리를 직접 다룰 일이 거의 없다. 변수나 객체로 이루어진 주소 값을 사용한다.
+
+### 물리적 주소 바인딩은 언제 이루어지는가?
+
+- **Compile time binding**
+- **Load time binding**
+    - 컴파일 시점에는 논리적인 주소 값만 결정이 된 상태에서 프로그램을 실행하면(프로세스가 메모리에 올라가면) 물리적 주소가 바인딩 된다.
+- **Execution time binding**(Runtime binding)
+    - 프로그램이 시작됐을 때 물리적 주소가 바인딩되는 건 똑같지만 해당 주소 값이 런타임동안 계속 바뀔 수 있다.
+    - CPU 가 주소를 참조할 때 마다 binding 을 점검한다. (address mapping table)
+    - 하드웨어적인 지원이 필요하다.
+
+### MMU(Memory Management Unit)
+
+- MMU 는 실행중인 프로그램의 논리적 주소를 물리적 주소로 동적으로 변환해주는 하드웨어다.
+- 프로세스는 논리적 주소만 인식하고, 운영체제와 MMU 가 실제 물리적 주소를 관리하기 때문에 안정적이고 효율적인 메모리 활용이 가능해진다.
+
+### Dynamic Relocation
+
+- CPU 가 logical address 로 데이터를 요청한다.
+- MMU 가 logical address 를 받는다.
+- **relocation register**(base register) 와 **limit register** 로 logical address 를 physical address 로 변환한다.
+- MMU 는 base register 에 프로그램의 시작 주소를 저장해둔다. (실제 메모리 상의 시작 위치)
+    - 논리적 주소가 346 번이고, base register 에 저장된 프로그램의 시작 주소가 14000 번이라면 14346 번을 반환한다.
+- limit register 는 프로그램 주소의 최대 크기(논리적 주소의 범위)를 저장해둔다.
+    - 프로그램 주소의 최대 크기가 1000 인데 1001 번지 논리적 주소로 데이터를 요청하면 다른 프로그램의 데이터가 불러와 질 위험성이 있다.
+    - trap 이 걸린다. addressing error 가 발생한다.
+
+> 이러한 방식은 contiguous allocation 을 가정한 내용이다.
+
+### Dynamic Loading
+
+- 프로세스 전체를 메모리에 미리 다 올리는 것이 아니다.
+- 해당 루틴이 불려질 때 메모리에 load 하는 것이다.
+- memory utilization 이 향상된다.
+- 가끔씩 사용되는 많은 양의 코드의 경우 유용하다.
+    - ex) 오류 처리 루틴
+- 운영체제의 특별한 지원 없이 프로그램 자체에서 구현할 수도 있다.
+    - 운영체제는 paging 기법으로 dynamic loading 을 지원한다.
+
+### Overlays
+
+- 메모리에 프로세스의 부분 중 실제 필요한 정보만을 올린다.
+- 프로세스의 크기가 메모리보다 클 때 유용하다.
+- 용어의 의미로만 따지면 Dynamic Loading 과 다를게 없지만 Dynamic Loading 기법을 프로그래가 수작업으로 구현했다는 의미로 사용된다.
+    - Manual Overlay 로 불리기도 한다.
+
+### Swapping
+
+- 프로세스를 일시적으로 메모리에서 **backing store** 로 쫓아내는 것을 의미한다.
+- backing store (swap area)
+    - 많은 사용자의 프로세스 이미지를 담을 만큼 충분히 빠르고 큰 저장 공간이다. (디스크)
+- Swap in / Swap out
+    - 일반적으로 중기 스케쥴러(Swapper) 에 의해 swap out 시킬 프로세스를 선정한다.
+        - priority-based CPU scheduling algorithm 이 사용된다.
+    - Execution time binding 의 경우 Swap in 과정에서 빈 메모리 영역 아무 곳에나 프로세스를 올릴 수 있다.
+    - Swap time 의 대부분은 transfer time 이다.
+    - Swap out 된다고 해서 프로세스 전체가 메모리에서 제거되는 것은 아니다.
+    - 프로세스는 페이지 단위로 메모리에 올라가기 때문에 페이지 별로 Swap 이 결정된다.
+
+### Dynamic Linking
+
+- Linking 은 실행 시간까지 미루는 기법을 의미한다.
+- **Static linking**
+    - 라이브러리가 프로그램의 싪행 파일 코드에 포함된다.
+    - 동일한 라이브러리를 각각의 프로세스가 메모리에 올리므로 메모리 낭비가 심해진다.
+    - ex) printf 함수의 라이브러리 코드
+- **Dynamic linking**
+    - 라이브러리가 실행 시 연결(link)된다.
+    - 라이브러리 호출 부분에 라이브러리 루틴의 위치를 찾기 위한 stub 이라는 작은 코드를 둔다.
+    - 라이브러리가 이미 메모리에 있으면 그 루틴의 주소로 가고 없으면 디스크에서 읽어온다.(라이브러리는 별도의 파일로 존재한다.)
+    - 운영체제의 도움이 필요하다.
+    - 이러한 라이브러리를 Shared Library 라고 하며 윈도우에서는 dll 파일 확장자를 사용한다. (리눅스는 shared object)
+
+## Allocation of Physical Memory
+
+- 물리적 메모리는 일반적으로 두 영역으로 나뉘어 사용한다.
+    - **OS 상주 영역**
+    - **사용자 프로세스 영역**
+- 사용자 프로세스 영역의 할당 방법
+    - **Contiguous allocation**
+        - 각각의 프로세스가 메모리의 연속적인 공간에 적재되도록 하는 것
+        - **Fixed partition allocation**
+        - **variable partition allocation**
+    - **Noncontiguous allocation**
+        - 하나의 프로세스가 메모리의 여러 영역에 분산되어 올라갈 수 있다.
+        - **Paging**
+        - **Segmentation**
+        - **Paged Segmentation**
+
+## Contiguous Allocation
+
+### Fixed Partition Allocation(고정 분할 방식)
+
+- 메모리를 몇 개의 영구적 분할로 나눈다.
+- 프로그램을 메모리에 올릴 때 크기기에 맞는 메모리에 맞춰 끼우는 방식이다.
+- 이렇게 되면 메모리 조각(빈 메모리)이 발생하게 된다.
+    - 외부 조각
+        - 프로그램에 할당되지 않은 빈 메모리다.
+    - 내부 조각
+        - 프로그램에게 할당은 됐지만 사용되지 않는 빈 메모리다.
+- 동시에 메모리에 load 되는 프로그램의 수가 고정적이다.
+- 최대 수행 가능한 프로그램의 크기가 제한된다.
+
+### Variable Partition Allocation(가변 분할 방식)
+
+- 프로그램의 크기를 고려해서 할당한다.
+- 분할의 크기, 개수가 동적으로 변한다.
+- 외부 조각이 발생할 수 있다.
+    - 중간 중간에 프로그램이 메모리에서 빠져나가면 빈 메모리가 생긱된다.
+    - 프로그램이 종료되어 생긴 가용 메모리를 Hole 이라고 한다.
+    - Hole 은 가용 메모리지만, 외부 조각은 그 크기나 위치 때문에 필요한 작업에 할당할 수 없는 경우를 뜻합니다.
+    - Hole 은 외부 조각화의 원인이 된다.
+
+### Dynamic Storage-Allocation Problem
+
+- 가변 분할 방식에서 size n 인 요청을 만족하는 가장 적절한 hole 을 찾는 문제
+- **First-fit**
+    - Size 가 n 이상인 것 중 최초로 찾아지는 hole 에 할당한다.
+- **Best-fit**
+    - Size 가 n 이상인 것 중 가장 작은 hole 을 찾아 할당한다.
+- **Worst-fit**
+    - 가장 큰 hole 에 할당한다.
+- **compaction**
+    - 외부 조각 문제를 해결하기 위한 방법 중 하나다.
+    - 사용 중인 메모리 영역을 한 군데로 몰아 넣고, Hole 들을 다른 한 군데로 몰아 큰 Block 을 만드는 것이다.
+    - 하지만 이 방식은 비용이 매우 많이 든다.
+        - 따라서 전체 메모리를 전부 밀어 넣는 것 보다는 일부 메모리만 밀어서 공간을 확보하는 방법을 사용한다.
+    - Compaction 은 프로세스의 주소가 실행 시간에 동적으로 재배치가 가능한 경우에만 수행될 수 있다. (Runtime binding)
+
+## Noncontiguous Allocation
+
+### Paging
+
+- Process 의 virtual memory 를 동일한 사이즈의 page 단위로 나눈다.
+- Virtual memory 의 내용이 page 단위로 noncontiguous 하게 저장된다.
+    - 일부는 backing storage, 일부는 physical memory
+- 메모리 상의 공간도 페이지가 들어갈 수 있게 페이지의 크기에 맞게 잘게 분할해둔다. (frame)
+    - MMU 에 의한 주소 변환 과정이 복잡해진다.
+    - 프로세스 전체가 아닌 페이지 단위로 주소 변환을 해야하기 때문
+- page table 을 사용하여 logical address 를 physical address 로 변환한다.
+    - page table 은 배열이라고 생각하면 이해가 쉽다.(배열과 같은 건 아니다.)
+    - page table 에는 entry(인덱스)가 있다.
+    - entry 마다 해당 logical address 가 어떤 physical address 에 할당되는지 나타낸다.
+        - 논리적 주소의 페이지 번호를 물리적 주소의 프레임 번호와 매핑한다.
+        - 여기서 페이지 번호가 배열의 인덱스 역할을 한다.
+        - page table entry 는 페이지 테이블의 한 칸을 의미한다. (프레임 번호가 저장된 공간)
+- 외부 조각은 발생하지 않는다.
+- 내부 조각은 발생할 수 있다.
+- Page table 은 굉장히 크다.
+    - 일반적으로 페이지 테이블엔 100만개 이상의 엔트리가 존재한다.
+    - 따라서 레지스터나. 캐시 메모리에 저장할 수 없다.
+    - Page table 은 main memory 에 상주한다.
+    - Page table base register(PTBR)가 page table 을 가리킨다.
+    - Page table length register(PTLR)가 테이블 크기를 보관한다.
+    - 모든 메모리 접근 연산에는 2번의 memory access 가 필요하다.
+        - page table 접근 1번
+        - data/instruction 접근 1번
+        - 따라서 느릴 수 있다.
+    - 속도 향상을 위해 associative register 혹은 translation look-aside buffer(TLB)라 불리는 고속의 lookup hardware cache 를 사용한다. (주소
+      변환을 위한 캐시 메모리다.)
+        - TLB hit -> TLB 를 통해 주소 변환을 한다.
+        - TLB miss -> page table 에 직접 접근한다. (메인 메모리에 접근)
+        - TLB 는 모든 페이지 정보를 갖고 있지 않다.
+            - 캐시 메모리는 용량이 적어서 모든 정보를 저장해둘 수 없음
+        - TLB 는 테이블 전체를 탐색해야 하기 때문에 비교적 느릴 수 있다.
+            - TLB 는 페이지 번호를 직접 인덱스로 사용하지 않고 연관 검색(associative search) 방식으로 탐색한다.
+            - TLB 는 자주 사용되는 매핑 정보만 캐싱한다.
+            - 따라서 저장된 페이지 번호가 불규칙적이므로 배열의 인덱스 처럼 페이지 번호로 직접 접근할 수 없다.
+        - associative register 를 활용하면 병렬 탐색이 가능하기 때문에 성능 개선이 가능하다.
+- Address translation
+    - page table 중 일부가 associative register 에 보관되어 있다.
+    - 만약 해당 page 가 associative register 에 있는 경우 곧바로 frame 번호를 얻어온다.
+    - 그렇지 않은 경우 main memory 에 있는 page table 로 부터 frame 번호를 얻어온다.
+    - TLB 는 context switch 때 flush 된다.
+
+### Two-Level Page Table
+
+- 현대의 컴퓨터는 address space 가 매우 큰 프로그램을 지원한다.
+    - 32 bit 주소 체계를 사용시 4GB 의 주소 공간이 필요하다.
+    - page size 가 4KB 라면 페이지 테이블에 약 1M 개의 엔트리가 저장될 수 있다.
+    - 각 page entry 가 4 byte 라면 프로세스당 4M 의 page table 이 필요하다.
+    - 그러나 대부분의 프로그램은 4G 의 주소 공간 중 지극히 일부분만 사용하므로 page table 공간이 심하게 낭비된다.
+- 따라서 사용되지 않는 페이지 테이블의 공간을 줄이기 위해서 2단계 페이지 테이블을 사용한다.
+- 2단계 페이지 테이블은 외부 테이블(Page Directory)과 내부 테이블(Page Table), 페이지 오프셋으로 이루어져 있다.
+    - 외부 테이블의 엔트리는 하위 페이지 테이블을 가리킨다.
+    - 하위 테이블의 엔트리는 실제 프레임 번호를 저장한다.
+    - 페이지 오프셋은 페이지 내부 데이터를 저장하고 있다.
+- 사용되지 않는 테이블의 내부 테이블은 NULL 로 표시된다.
+- 2단계 페이지 테이블을 사용해서 주소 공간 전체를 위한 테이블을 생성할 필요가 없으므로 메모리 낭비를 줄일 수 있다.
+    - 필요한 하위 페이지 테이블만 메모리에 로드한다.
+    - 비어 있는 주소 공간에 대해 메모리를 할당하지 않아도 된다.
+
+### 단일 레벨 페이지 테이블 vs 2단계 페이지 테이블
+
+- 단일 레벨 페이지 테이블은 논리 주소 공간 전체에 대한 엔트리를 생성한다.
+    - 논리 주소 공간이 크더라도, 실제로 사용하지 않는 주소에 대해서도 페이지 테이블 엔트리를 유지해야 한다.
+    - 결과적으로 많은 엔트리가 비어있게 되어 메모리가 낭비된다.
+- 반면에 **2단계 페이지 테이블은 실제로 해당 주소 공간이 사용될 때만 생성된다.**
+    - 하위 페이지 테이블은 논리 주소의 특정 범위에 해당하는 페이지 정보를 저장한다.
+    - 해당 범위에 페이지가 없으면 하위 페이지 테이블 자체를 생성하지 않는다.
+    - 비어 있는 주소 공간에 대해서는 페이지 디렉토리 엔트리가 NULL 로 표시된다.
+    - 디렉터리가 비어있는 상태에서는 하위 페이지 테이블도 존재하지 않으므로 메모리를 할당하지 않는다.
+- 단일 페이지 테이블과 2단계 페이지 테이블의 근본적인 차이는 **테이블 구조 자체가 다르다는 것이다.**
+    - 2단계 페이지 테이블은 단일 페이지 테이블 내부에 또다른 단일 페이지 테이블이 들어있는 것이 아니다.
+    - 단일 페이지 테이블은 사용하지 않는 주소 공간도 테이블에 포함되어 항상 메모리를 차지하도록 설계되어 있다.
+    - 2단계 페이지 테이블은 비어있는 주소 공간에 대해서는 메모리를 할당하지 않도록 설계되어 있다.
+
+[//]: # (2단계 페이지 테이블도 TLB 를 사용할까?)
+
+[//]: # (2단계 페이지 테이블은 어떤식으로 설계가 되어있길래 같은 테이블인데도 사용중인 주소공간만 메모리에 올라갈 수 있는 걸까?)
+
+### Segmentation
+
+- 프로그램 내부 공간을 의미있는 단위로 분할한다.
+- code, data, stack 과 같은 의미있는 영역 단위(Segment)로 분할한다.
