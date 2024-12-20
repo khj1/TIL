@@ -1563,7 +1563,7 @@ class DiningPhilosophersMonitor {
 
 ## page fault
 
-- invalid page 에 접근하면 MMU(주소 변환을 위한 하드웨어)가 trap 을 발생시킨다. (page fault trap)
+- **invalid page 에 접근하면 MMU(주소 변환을 위한 하드웨어)가 trap 을 발생시킨다.** (page fault trap)
 - 커널 모드로 진입해서 page fault handler 가 invoke 된다.
 - **page fault 처리 과정**
     - invalid reference 발생
@@ -1600,3 +1600,262 @@ class DiningPhilosophersMonitor {
         - 참조 횟수가 가장 적은 페이지를 제거한다.
         - List 로 구현하면 O(n) 으로 성능이 느리다.
         - 따라서 LFU 는 이진트리를 사용해서 O(log n)으로 성능을 개선한다.
+
+## 다양한 캐싱 환경
+
+- 캐싱 기법
+    - 한정된 빠른 공간에 요청된 데이터를 저장해 두었다가 후속 요청 시 캐시로부터 직접 서비스하는 방식이다.
+    - Web caching, Buffer caching, cache memory, paging system (TLB) 등등
+- 캐시 운영의 시간 제약
+    - 교체 알고리즘에서 삭제할 항목을 결정하는 일에 지나치게 많은 시간이 걸리는 경우 실제 시스템에서 사용할 수 없다.
+    - Buffer caching 이나 Web caching 의 경우 O(1) ~ O(log n) 정도 까지만 허용한다.
+    - Paging System 인 경우
+        - 페이지가 이미 메모리에 존재하는 경우 참조 시각등의 정보를 OS 가 알 수 없다.
+            - OS 는 페이지 참조 정보를 전부 추적하지 않는다.
+            - 페이지 참조는 주로 TLB 에서 처리되며 OS 는 페이지 참조 시점이나 참조 횟수를 정확히 알기 어렵다.
+            - 따라서 실제론 OS 에서 LRU, LFU 는 잘 사용되지 않고 clock algorithm 을 활용해서 page replacement 가 발생한다.
+            - LRU, LFU 는 운영체제 보다는 캐시 관리와 같은 특정 상황에서 더 자주 사용된다.
+        - page fault 가 발생했을 때 OS 는 다음과 같은 정보를 알 수 있다.
+            - 현재 실행 중인 프로세스의 페이지 테이블 정보
+            - reference bit
+            - dirty bit(modified bit)
+
+## Clock Algorithm
+
+- 메모리에 올라간 페이지를 조회하기 위해 사용되는 알고리즘이다. (하드웨어가 처리하는 방식이다.)
+    - LRU 의 근사(approximation) 알고리즘이다.
+    - Second chance, NUR(Not used recently), NRU(Not recently used) 알고리즘이라고 불린다.
+- 페이지 테이블엔 reference bit, modified bit 이라는 정보가 있다.
+    - reference bit = 1 -> 최근에 참조된 페이지
+- reference bit 을 사용해서 교체 대상 페이지를 선정한다.
+    - reference bit 이 0인 것을 찾을 때 까지 포인터를 하나씩 앞으로 이동한다.
+    - 포인터를 이동하는 중에 reference bit 1 을 모두 0으로 바꾼다.
+    - reference bit 이 0 인것을 찾으면 그 페이지를 교체한다.
+    - 한 바퀴 돌아와서도 (second chance) 0 이면 그때는 replace 당한다.
+    - 자주 참조되는 페이지는 포인트가 돌고있는 와중에도 reference bit 이 1로 다시 바뀔 수 있다.
+- reference bit 과 modified bit 을 함께 사용해서 clock algorithm 을 개선할 수 있다.
+    - modified bit = 1 -> 최근에 변경된 페이지(I/O 를 동반하는 페이지)
+
+## Page Frame 의 Allocation
+
+- Allocation problem
+    - 각 프로세스에 얼마만큼의 page frame 을 할당할 것인가?
+    - 프로세스마다 사용하는 페이지의 수가 다를 것이고 이에 맞춰 적절하게 page frame 을 배분하는 작업이 필요하다.
+- Allocation 의 필요성
+    - 메모리 참조 명령어 수행 시 명령어, 데이터 등 여러 페이지 동시 참조
+        - 명령어 수행을 위해 최소한 할당되어야 하는 frame 수가 있다.
+    - Loop 를 구성하는 page 들은 한꺼번에 allocate 되는 것이 유리하다.
+        - 최소한의 allocation 이 없으면 매 loop 마다 page fault 가 발생할 수 있다.
+- Allocation scheme
+    - Equal allocation
+    - Proportional allocation
+        - 프로세스 크기에 비례하여 할당한다.
+    - Priority allocation
+
+### Global vs Local Replacement
+
+- **Global replacement**
+    - Replace 시 다른 process 에 할당된 frame 을 뺏어올 수 있다.
+    - Process 별 할당량을 조절하는 또 다른 방법이다.
+    - Working set, PFF 알고리즘을 사용한다.
+- **Local replacement**
+    - 자신에게 할당된 frame 내에서만 replacement
+        - 할당을 이미 받은 상태에서 replacement 가 이루어지는 방법이다.
+    - FIFO, LRU, LFU 등의 알고리즘을 process 별로 운영한다.
+- Window 운영체제는 Local 과 Global 방식을 조합해서 페이지 교체를 수행한다.
+    - Local Replacement
+        - 프로세스는 자신의 working set 크기 내에서 페이지를 교체한다.
+    - Global Replacement
+        - 시스템 메모리가 부족할 때, 다른 프로세스의 Working set 을 줄여 메모리 프레임을 확보한다.
+
+## Thrashing
+
+- 프로세스의 원활한 수행에 필요한 최소한의 page frame 수를 할당 받지 못한 경우 발생한다.
+- Page fault rate 이 매우 높아진다.
+- CPU utilization 이 낮아진다.
+- OS 는 MPD(Multiprogramming degree)를 높여야 한다고 판단
+- 이 상황에서 또 다른 프로세스가 시스템에 추가된다.
+- 프로세스 당 할당된 frame 의 수는 더욱 감소
+- 프로세스는 page 의 swap in / swap out 으로 매우 마쁨
+- 대부분의 시간에 CPU 는 한가해진다.
+- low throughput
+
+## Working-Set Model
+
+- Locality of reference
+    - 프로세스는 특정 시간 동안 일정 장소만을 집중적으로 참조한다.
+    - 집중적으로 참조되는 해당 page 들의 집합을 **locality set** 이라 한다.
+- Working-set Model
+    - Locality 에 기반하여 프로세스가 일정 시간 동안 원활하게 수행되기 위해 한꺼번에 메모리에 올라와 있어야 하는 page 들의 집합을 Working Set 이라 정의한다.
+    - Working Set 모델에서는 process 의 working set 전체가 메모리에 올라와 있어야 수행되고 그렇지 않을 경우 모든 frame 을 반납한 후 swap out 된다.
+    - Thrashing 을 방지한다.
+    - Multiprogramming degree 를 결정한다.
+- 프로세스는 하나의 Working set 을 가진다.
+- 프로세스의 Working set 은 동적으로 변한다.
+    - 만약 프로세스 A 의 페이지가 총 100개이고 window size 가 10이라면 working set 은 가장 최근에 참조한 10 개의 페이지를 통해 만들어진다.
+- Working set 에 해당하는 페이지들만 메모리에 올라간다.
+    - Working set 의 크기가 3이면 프로세스에 3개의 메모리 프레임이 할당된다.
+- 그렇지 않은 페이지들은 Swap out 된다.
+
+### Working-Set Algorithm
+
+- Working set 은 어떻게 결정되는가
+- Working set window 를 통해 알아낸다.
+    - Working set window 는 페이지 참조의 범위를 설정하는 틀 같은 개념이다.
+    - 만약 page reference table 이 2, 6, 1, 5, 7, 7, 7, 7, 5, 1 이고 window size 가 10 이라면?
+        - Working set 은 {1, 2, 5, 6, 7} 이 된다.
+        - 만약 여기서 Working set 의 크기가 4로 제한된다면?
+        - 모든 frame 을 반납하고 swap out 된다.
+    - 만약 page reference table 이 3, 4, 3, 4, 3, 3, 3, 3, 4, 4, 이고 window size 가 10 이라면?
+        - Working set 은 {3, 4} 가 된다.
+    - 이처럼 Working set 의 크기는 언제든지 달라질 수 있다.
+    - Working set 에 속한 page 는 메모리에 유지하고. 속하지 않는 페이지는 버린다.
+        - 즉 참조된 window size 만큼의 시간 동안 해당 page 를 메모리에 유지한 후 버린다.
+- page reference table 이 1, 2, 3, 4, 5, 6, 7, 8 이고 window size 가 3 이라면 working set 은 다음과 같이 동적으로 변한다.
+    - {1, 2, 3}
+    - {2, 3, 4}
+    - {3, 4, 5}
+    - 이런 식으로 새롭게 참조되는 페이지들이 추가되는 방식으로 working set 이 계속 변한다.
+
+## PPF (Page-Fault Frequency) Scheme
+
+- page-fault rate 에 상한값과 하한값을 둔다.
+    - page-fault rate 이 상한값을 넘으면 frame 을 더 할당한다.
+    - page-fault rate 이 하한값 이하로 떨어지면 할당 frame 수를 줄인다.
+- 빈 frame 이 없으면 일부 프로세스를 swap out 한다.
+
+## Page size 의 결정
+
+- Page size 를 감소시키면
+    - 페이지 수 증가
+    - 페이지 테이블 크기 증가
+        - 페이지 테이블을 위한 메모리 낭비가 더 심해진다.
+    - Internal fragmentation 감소
+    - Disk transfer 효율성 감소
+        - Disk 는 원판을 회전시켜 데이터를 seek 하는 과정을 거치는데 이 과정이 굉장히 느리다.
+        - 따라서 한번 Seek 할 때 많은 데이터를 찾아오는 것이 효율적이다.
+    - 필요한 정보만 메모리에 올라와 메모리 이용의 효율성 향상
+        - Locality 의 활용 측면에서는 좋지 않다.
+- Trend
+    - Larger page size
+
+# File System
+
+- **File**
+    - A named collection of related information
+    - 일반적으로 비휘발성의 보조 기억 장치에 저장한다.
+    - 운영 체제는 다양한 저장 장치를 file 이라는 논리적 단위로 볼 수 있게 해준다.
+- **File attribute**(파일의 metadata)
+    - 파일 자체의 내용이 아니라 파일을 관리하기 위한 각종 정보들
+        - 파일 이름, 파일 유형, 저장된 위치, 파일 사이즈
+        - 접근 권한(읽기/쓰기/실행), 시간(생성/변경/사용), 소유자 등
+- **File System**
+    - 운영체제에서 파일들을 관리하는 부분
+    - 파일 및 파일의 메타 데이터, 디렉터리 정보 등을 관리한다.
+    - 파일의 저장 방법을 결정한다.
+    - 파일 보호 등
+
+## Directory and Logical Disk
+
+- **Directory**
+    - 파일의 메타 데이터 중 일부를 보관하고 있는 일종의 특별한 파일이다.
+    - 그 디렉토리에 속한 파일 이름 및 파일 attribute 등을 담고 있다.
+    - operation
+        - search, create file, delete file
+        - list a directory, rename file, traverse the file system(파일 시스템 전체를 탐색)
+- **Partition**
+    - 하나의 물리 디스크 안에 여러 파티션을 두는게 일반적이다.
+    - 여러 개의 물리적인 디스크를 하나의 파티션으로 구성하기도 한다.
+    - 물리 디스크를 파티션으로 구성한 뒤 각각의 파티션에 file system 을 깔거나 swapping 등 다른 용도로 활용할 수 있다.
+- file **open()**
+    - `open("/a/b/c)`
+    - 디스크로 부터 파일 c 의 메타 데이터가 메모리로 올라오게 된다.
+    - 이를 위해 directory path 를 search 한다.
+        - 루트 디렉토리 `/`를 open 하고 그 안에서 파일 a 의 위치를 획득한다.
+        - 파일 a 를 open 한 후 read 하여 그 안에서 파일 b 의 위치를 획득한다.
+        - 파일 b 를 open 한 후 read 하여 그 안에서 파일 c 의 위치를 획득한다.
+        - 파일 c 를 open 한다.
+    - 이런 방식은 directory path search 에 너무 많은 시간을 소요한다.
+        - 한번 open 한 파일은 read / write 시 directory search 를 하지 않아도 된다.
+
+### Open file table(system-wide open file table), File descriptor
+
+- 커널 메모리 영역에 존재한다.
+- 파일 open 시 해당 파일의 메타데이터가 open file table 에 올라간다.
+    - 파일의 메타 데이터의 위치는 file descriptor table 에서 확인할 수 있다.
+    - file descriptor table 또한 커널 메모리 영역에서 관리된다.
+    - per-process file descriptor table 이라고도 불린다.
+- 한 번 open 된 파일에 다시 접근할 때는 open file table 에 위치한 해당 파일의 메타 데이터를 활용해 바로 디스크에 접근한다.
+    - directory path search 없이
+- 또한 read/write 시 Disk 에 반복적으로 접근하는 일을 막고자 buffer cache 를 사용하기도 한다.
+- 동일한 파일을 여러 프로세스에서 사용할 수도 있다.
+    - 이 경우 파일의 메타 데이터는 Open file table 에 한 copy 만 올라가게 된다.
+    - 하지만 프로세스마다 해당 파일의 어느 부분부터 읽을 것인지는 전부 다르기 때문에 file offset 정보는 각 프로세스마다 별도로 관리하고 있다.(file descriptor)
+
+#### 파일 open 과정 정리
+
+1. 사용자 프로세스에서 open("/a/b/c") 함수를 호출하면 trap이 발생한다.
+    - 사용자 영역에서 시스템 콜(open)을 호출하면 CPU는 trap을 발생시켜 커널 모드로 전환된다.
+    - 이 과정은 프로세스가 운영체제의 특권 영역에 접근하기 위한 일반적인 방식
+2. CPU 제어권이 OS로 넘어가게 되고 커널 메모리 영역으로 이동한다.
+    - trap 발생 후 제어권은 OS의 커널로 넘어가며, 커널은 프로세스의 요청을 처리한다.
+    - 커널 메모리 영역은 사용자 영역과 구분된 공간으로, 여기에서 파일 시스템 작업이 이루어 진다.
+3. 파일 시스템의 슈퍼 블록 정보를 활용해 루트 디렉토리의 위치를 확인한다.
+    - file descriptor table은 특정 프로세스에 열린 파일을 관리하는 테이블이다.
+    - 즉, 이 시점에서는 아직 file descriptor가 생성되지 않는다.
+    - 대신, 파일 시스템의 슈퍼블록(superblock) 정보를 활용해 루트 디렉토리의 위치를 확인한다.
+    - 슈퍼블록은 파일 시스템의 전반적인 메타데이터를 포함하고 있으며, 루트 디렉토리의 위치 정보도 여기에 저장된다.
+4. 루트 디렉토리의 위치 정보를 활용해 루트 디렉토리의 메타데이터 정보를 확인한다.
+    - 루트 디렉토리의 메타데이터는 커널 메모리에 캐시되거나 **디렉토리 엔트리 캐시(dentry cache)**에 저장된다.
+    - open file table 은 파일을 열었을 때 생성된다.
+    - 이 시점에서는 루트 디렉토리의 메타데이터가 직접적으로 open file table에 올라가는 것은 아니다.
+5. 루트 디렉토리 메타데이터로부터 a 파일의 메타데이터 정보를 확인한다.
+    - 디렉토리 탐색 과정에서 루트 디렉토리의 엔트리를 기반으로 하위 디렉토리(a)의 메타데이터를 찾는다.
+6. 이런 식으로 c 파일의 메타데이터를 통해 c 파일을 open 하고 open file table 에 올려둔다.
+    - 탐색 과정이 끝나고, 파일(c)이 열리면 커널은 해당 파일의 메타데이터를 기반으로 open file table 에 항목을 추가한다.
+    - 프로세스의 file descriptor table 에도 새 파일 디스크립터가 연결된다.
+7. 이런 과정을 directory path search 라고 하는데, 굉장히 비효율적인 방법이기 때문에 한번 open된 파일에 접근할 때는 open file tabl 을 활용해 바로 파일의 메타데이터에 접근할 수
+   있도록 한다.
+    - 디렉토리 경로 탐색은 반복적으로 이루어지면 비효율적이므로, 커널은 디렉토리 엔트리 캐시(dentry cache)를 활용해 이후 접근을 최적화한다.
+    - 또한, 열린 파일은 open file table 을 통해 관리되므로 이후 파일 접근은 훨씬 효율적입니다.
+8. 파일의 read/write도 디스크를 통해 직접적으로 이루어지면 굉장히 비효율적이기 때문에 한번 읽어온 파일은 buffer cache에 올려두고 사용한다.
+    - 디스크 I/O는 느리기 때문에, OS는 **버퍼 캐시(buffer cache)**를 사용하여 자주 접근하는 데이터를 메모리에 유지한다.
+9. 하나의 파일이 여러 프로세스에서 동시에 사용될 수도 있기 때문에 파일의 메타데이터는 open file table 에 한 copy 만 올려둔다.
+    - 열린 파일에 대한 메타데이터는 시스템 전역의 open file table 에 하나만 저장된다.
+    - 여러 프로세스가 동일 파일에 접근하더라도, 파일의 메타데이터는 중복 저장되지 않는다.
+10. 동일한 파일에 대해서도 프로세스마다 어느 위치부터 읽어올지는 전부 다르기 때문에 파일의 offset 은 프로세스마다 별도로 관리하고 있다.
+    - 프로세스마다 파일 읽기/쓰기 위치를 별도로 유지하기 위해 file descriptor table 에 각 파일의 오프셋이 저장된다.
+    - 이를 통해 동일한 파일이라도 각 프로세스가 독립적으로 작업할 수 있다.
+
+## File Protection
+
+- 각 파일에 대해 누구에게 어떤 유형의 접근(read/write/execution)을 허락할 것인가?
+- Access Control 방법
+    - **Access Control Matrix**
+        - 사용자 마다 어떤 파일에 어떤 권한이 있는지 linked list 로 구현해서 정리해둔다.
+        - 파일 별로 누구에게 어떤 접근 권한이 있는지 표시해둔다. (ACL - Access Control List)
+        - 또는 각각의 사용자 별로 자신이 접근 권한을 가진 파일 및 해당 권한을 표시해둔다. (Capability)
+    - **Grouping**
+        - 전체 User 를 owner, group, public 의 세 그룹으로 구분한다.
+        - 각 파일에 대해 세 그룹의 접근 권한(rwx)를 3비트씩으로 표시한다.
+    - **Password**
+        - 파일마다 password 를 두는 방법
+        - 모든 접근 권한에 대해 하나의 password
+            - all-or-nothing
+        - 접근 권한별 password 를 두는 방법
+            - password 암기 문제, 관리 문제가 있다.
+
+## File Mounting
+
+[//]: # (TODO)
+
+## Access Methods (파일 접근 방식)
+
+- **sequential access**
+    - 카세트 테이브를 사용하는 방식처럼 접근한다.
+        - 파일의 첫 부분으로 돌아가고 싶으면 카세트 테이프를 직접 처음으로 돌려주는 작업이 필요하다.
+    - 읽거나 쓰면 offset 은 자동으로 증가한다.
+- **direct access**, **random access**
+    - LP 레코드 판과 같이 접근하도록 구현한다.
+        - A 파일을 읽다가, B, C 파일은 바로 건너뛰고 D 파일에 직접 접근할 수 있다.
+    - 파일을 구성하는 레코드를 임의의 순서로 접근할 수 있다.
