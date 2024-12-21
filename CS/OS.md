@@ -1782,9 +1782,9 @@ class DiningPhilosophersMonitor {
 
 - 커널 메모리 영역에 존재한다.
 - 파일 open 시 해당 파일의 메타데이터가 open file table 에 올라간다.
-    - 파일의 메타 데이터의 위치는 file descriptor table 에서 확인할 수 있다.
-    - file descriptor table 또한 커널 메모리 영역에서 관리된다.
-    - per-process file descriptor table 이라고도 불린다.
+    - open file table 말고 file descriptor 도 커널 메모리 영역에 존재한다.
+        - 현재 프로세스가 읽고 있는 파일 내부의 위치 값을 저장해둔다. (포인터)
+        - per-process file descriptor table 이라고도 불린다.
 - 한 번 open 된 파일에 다시 접근할 때는 open file table 에 위치한 해당 파일의 메타 데이터를 활용해 바로 디스크에 접근한다.
     - directory path search 없이
 - 또한 read/write 시 Disk 에 반복적으로 접근하는 일을 막고자 buffer cache 를 사용하기도 한다.
@@ -1808,7 +1808,7 @@ class DiningPhilosophersMonitor {
 4. 루트 디렉토리의 위치 정보를 활용해 루트 디렉토리의 메타데이터 정보를 확인한다.
     - 루트 디렉토리의 메타데이터는 커널 메모리에 캐시되거나 **디렉토리 엔트리 캐시(dentry cache)**에 저장된다.
     - open file table 은 파일을 열었을 때 생성된다.
-    - 이 시점에서는 루트 디렉토리의 메타데이터가 직접적으로 open file table에 올라가는 것은 아니다.
+    - 루트 디렉토리도 파일의 메타 데이터를 담고있는 특별한 파일이기 때문에 경로 탐색 과정에서 open file table 에 올라갈 수 있다.
 5. 루트 디렉토리 메타데이터로부터 a 파일의 메타데이터 정보를 확인한다.
     - 디렉토리 탐색 과정에서 루트 디렉토리의 엔트리를 기반으로 하위 디렉토리(a)의 메타데이터를 찾는다.
 6. 이런 식으로 c 파일의 메타데이터를 통해 c 파일을 open 하고 open file table 에 올려둔다.
@@ -1859,3 +1859,163 @@ class DiningPhilosophersMonitor {
     - LP 레코드 판과 같이 접근하도록 구현한다.
         - A 파일을 읽다가, B, C 파일은 바로 건너뛰고 D 파일에 직접 접근할 수 있다.
     - 파일을 구성하는 레코드를 임의의 순서로 접근할 수 있다.
+
+## Allocation of File Data in Disk(디스크에 파일을 저장하는 방법)
+
+- **Contiguous Allocation**
+- **Linked Allocation**
+- **Indexed Allocation**
+
+### Contiguous Allocation
+
+- Directory 의 메타데이터에 파일의 시작 지점(start) 정보와 길이(length) 정보를 저장해둔다.
+- 하나의 파일은 디스크에서 `시작 지점 + 길이` 만큼 공간을 차지하며 연속적으로 저장된다.
+- 파일이 연속적으로 저장되어있기 때문에 디스크에서 파일을 읽어오는 속도가 빠르다.
+    - 한번의 seek/rotation 으로 많은 바이트를 transfer 할 수 있다.
+- 연속 할당의 문제점
+    - **외부 조각이 발생할 수 있다.**
+        - 디스크도 페이징 기법과 마찬가지로 내부를 동일한 크기의 블럭으로 나누어 파일을 저장한다.
+        - 블럭의 크기는 동일하지만 파일의 크기는 서로 상이하기 때문에 중간에 블럭이 비어있을 수 있다.
+    - **File grow 가 어렵다.**
+        - 파일은 중간에 크기가 변할 수 있다.
+        - 파일이 커질 것을 대비해서 file 생성 시 얼마나 큰 hole 을 배당할 것인가?
+        - 파일이 커질 것을 우려해서 미리 큰 공간을 할당해놓으면 내부 조각이 생성되어 메모리가 낭비된다.
+- 보통 Realtime file 또는 Swapping 용으로 많이 사용된다.
+    - Swap 은 공간 효율성 보다는 속도가 더 중요한 작업이다.
+- Direct Access(Random Access) 가 가능하다.
+    - 파일의 시작점과 길이를 알고 있기 때문에 해당 파일의 원하는 지점을 정확히 찾아갈 수 있다.
+
+### Linked Allocation
+
+- 디스크의 빈 블럭마다 파일의 데이터를 분산해서 저장해놓는 방식이다.
+- 디렉토리에 있는 메타데이터에는 파일의 시작 블럭 번호와 끝 번호를 적어 놓는다.
+- 시작 블럭에 있는 파일을 확인하면 내부에 다음 블럭의 번호가 저장되어있다.
+    - 파일 내부에 있는 블럭 번호(Pointer)를 통해 다음 블럭과 연결(Link)한다.
+- 외부 조각이 발생하지 않는 장점이 있다.
+- 연결 할당의 문제점
+    - 파일의 중간 부분만 읽고 싶어도 파일의 첫 블럭부터 순차적으로 탐색해 들어가야 한다.
+    - 한 sector 가 고장나 pointer 가 유실되면 뒷 부분을 잃게된다.
+    - Pointer 를 위한 공간이 block 의 일부가 되어 공간 효율성을 떨어뜨린다.
+- 변형
+    - FAT(File allocation table) 파일 시스템
+        - 포인터를 별도의 위치에 보관하여 reliability 와 공간 효율성 문제를 해결한다.
+
+### Indexed Allocation
+
+- 흩어져 있는 파일들의 인덱스 번호를 모아둔 Index block 을 따로 할당한다.
+- 디렉토리에는 해당 파일의 인덱스 블럭이 어느 위치에 있는지 그 번호를 저장해둔다.
+- 장점
+    - 외부 조각이 발생하지 않는다.
+    - 직접 접근이 가능하다.
+- 단점
+    - 파일의 크기가 작아도 index block 은 똑같이 할당되기 때문에 공간이 낭비된다. (실제로 대부분이 작은 파일들이다.)
+    - 파일의 크기가 너무 큰 경우에는 하나의 블록만으로 모든 Index 정보를 저장하기에 부족할 수 있다.
+- 해결 방안
+    - Linked Scheme
+    - Multilevel Index
+        - 2단계 페이지 테이블을 사용하는 것처럼 하나의 Index block 이 또다른 Index block 의 번호들을 저장하고 있는 형태
+
+### UNIX 가 사용하는 파일 시스템의 구조
+
+- 가장 기본적인 파일 시스템이다.
+- 구조
+    - **Boot block**
+        - 부팅에 필요한 정보를 담고 있다. (bootstrap loader)
+        - 보통 0번 블록에 위치한다.
+    - **Super block**
+        - 파일 시스템에 대한 총체적인 정보를 담고 있다.
+        - 빈 블록의 위치, 사용중인 블록의 위치, Inode 블럭의 위치, Data 블럭 의 위치 등등
+    - **Inode list** (Index node)
+        - 파일 하나당 Inode 가 하나씩 할당 된다.
+        - Inode 는 해당 파일의 메타 데이터를 저장하고 있다.
+            - 디렉토리가 파일의 메타 데이터를 저장하고 있다고 했지만, 디렉토르는 메타 데이터의 일부만 저장하고 있다.
+    - **Data block**
+    - 이 전부를 하나의 Partition 이라고 부른다. (Logical Disk)
+- Indexed Allocation 방식을 변형해서 사용하고 있다.
+    - 파일에게 할당되는 Inode 는 고정적인 크기를 가지고 있다.
+    - 작은 Inode 안에 파일의 위치 정보를 모두 담아낼 수 있어야 한다.
+    - 따라서 Direct blocks, Single Indirect, Double Indirect, Triple Indirect 로 나누어 파일 위치 정보를 저장한다.
+    - 작은 파일은 direct block 만으로도 위치를 확인할 수 있다.
+    - 파일의 크기가 커질수록 Triple Indirect 까지 내려가서 저장된다.
+
+### FAT File System
+
+- 구조
+    - **Boot block**
+    - **FAT**
+        - 파일의 다음 블럭의 위치 정보를 저장해두고 있다.
+        - 파일을 순차적으로 탐색하지 않아도 파일의 위치를 전부 알 수 있기 때문에 직접 접근이 가능하다.
+    - **Root directory**
+    - **Data block**
+        - 디렉토리 파일이 파일의 모든 메타데이터를 저장해두고 있다.
+        - 또한 해당 파일의 첫번째 위치가 어딘지도 저장해두고 있다.
+        - 파일의 다음 섹터가 어딘지는 FAT 에 저장해두고 있다.
+
+> UNIX, FAT 이외에도 더 다양한 파일 시스템이 여러 곳에서 사용되고 있다.
+
+## Free Space Management
+
+- **Bit map / Bit vector**
+    - Bit map 이라는 부가적인 공간을 활용해서 빈 블록을 표시해두는 방법이다.
+        - bit[i] = 0 -> block[i] free
+        - bit[i] = 1 -> block[i] occupied
+    - 연속적인 n 개의 free block 을 찾는데 효과적인 방법이다.
+- **Linked list**
+    - 모든 free block 들을 link 로 연결하는 방법이다.
+    - 연속적인 가용 공간을 찾는 것은 쉽지 않다.
+    - 공간의 낭비가 없다.
+- **Grouping**
+    - linked list 방식을 변형한 방법이다.
+        - File Allocation 의 Indexed Allocation 방식과 비슷하다.
+    - 첫번째 free block 이 n 개의 pointer 들을 가진다.
+    - n-1 pointer 는 free data block 을 가리킨다.
+    - 연속적인 빈 블록을 찾기엔 효과적이지 않다.
+- **Counting**
+    - Grouping 방식을 확장한 방법이다.
+    - 프로그램들이 종종 여러 개의 연속적인 block 을 할당하고 반납한다는 성질에서 착안했다.
+    - 첫번째 빈 블록 뒤에 몇개의 연속적인 빈 블록이 이어지고 있는지도 함께 관리하는 방법이다.
+
+## Directory Implementation
+
+- **Linear list**
+    - <file name, file metadata> 형식으로 이루어진 리스트 형태로 만들어진다.
+    - 디렉토리 내에 파일이 있는지 찾기 위해서는 linear search 가 필요하다.
+- **Hash Table**
+    - linear list + Hashing
+    - Hash Table 은 파일의 이름을 해당 파일의 linear list 위치로 변환해서 사용한다.
+    - Hash Collision 이 발생할 수 있다.
+- File 의 Metadata 보관 위치
+    - 디렉토리 내에 직접 보관하기도 하고
+    - 디렉토리에는 포인터를 두고 다른 곳에 보관하기도 한다.
+        - Inode, FAT
+- Long file name 의 지원
+    - <file name, file metadata>의 list 에서 각 entry 는 일반적으로 고정된 크기를 가지고 있다.
+    - file name 이 고정 크기의 entry 보다 길어지는 경우 entry 의 마지막 부분에 이름의 뒷부분이 위치한 포인터를 두는 방법이 있다.
+    - 이름의 나머지 부분은 동일한 directory file 의 일부에 존재한다.
+
+## VFS and NFS
+
+- **Virtual File System**
+    - File system 의 종류는 굉장히 다양하다.
+    - 사용자 프로세스에서 System call 을 통해 File System 을 호출하려고하는데 각 File System 마다 처리 루틴이 전부 다르다면 문제가 비효율적일 것이다.
+    - File System 의 종류에 상관없이 동일한 처리 루틴을 가지도록 추상화 해주는 것이 VFS interface 다
+- **Network File System**
+    - 분산 시스템에서는 네트워크를 통해 파일이 공유될 수 있다.
+    - NFS 는 분산 환경에서의 대표적인 파일 공유 방법이다.
+
+## Page Cache and Buffer Cache
+
+- **Page Cache**
+    - Virtual memory 의 paging system 에서 사용하는 page frame 을 caching 의 관점에서 설명하는 용어다.
+    - Memory-Mapped I/O 를 사용하는 경우 File 의 I/O 에서도 Page cache 를 사용한다.
+- **Memory-Mapped I/O**
+    - File 의 일부를 virtual memory 에 mapping 시킨다.
+    - 매핑시킨 영역에 대한 메모리 접근 연산은 파일의 입출력을 수행하게 한다.
+- **Buffer Cache**
+    - 파일 시스템을 통한 I/O 연산은 메모리의 특정 영역인 buffer cache 를 사용한다.
+    - File 사용의 locality 를 활용한다.
+        - 한번 읽어온 block 에 대한 후속 요청 시 buffer cache 에서 즉시 전달한다.
+    - 모든 프로세스가 공용으로 사용한다.
+    - Replacement Algorithm 이 필요하다. (LRU, LFU)
+- **Unified Buffer Cache**
+    - 최근의 OS 에서는 기존의 buffer cache 가 page cache 에 통합되었다.
