@@ -2013,9 +2013,163 @@ class DiningPhilosophersMonitor {
     - 매핑시킨 영역에 대한 메모리 접근 연산은 파일의 입출력을 수행하게 한다.
 - **Buffer Cache**
     - 파일 시스템을 통한 I/O 연산은 메모리의 특정 영역인 buffer cache 를 사용한다.
+        - 주로 파일 시스템의 메타 데이터를 캐싱하는데 주로 사용되었다.
     - File 사용의 locality 를 활용한다.
         - 한번 읽어온 block 에 대한 후속 요청 시 buffer cache 에서 즉시 전달한다.
     - 모든 프로세스가 공용으로 사용한다.
     - Replacement Algorithm 이 필요하다. (LRU, LFU)
 - **Unified Buffer Cache**
     - 최근의 OS 에서는 기존의 buffer cache 가 page cache 에 통합되었다.
+        - Page Cache 와 Buffer Cache 가 동일한 파일 데이터를 중복으로 저장하는 문제를 해결하기 위해 설계되었다.
+    - Cache 의 용도에 구분을 두지 않는다.
+        - 만약 I/O 데이터가 필요하다면 해당 Page Cache 공간을 Buffer Cache 용도로 사용하고,
+        - Page Swap 작업이 필요하다면 해당 Page Cache 공간을 Page Cache 용도 그대로 사용한다.
+        - Cache Pool 처럼 그때그때 필요한 용도로 할당하는 방식이다.
+
+> 일반적으론 Page Cache 가 파일 시스템의 I/O 성능을 높이기 위해 메모리에 데이터를 캐싱하는 구조를 의미한다고 한다.
+
+### Page Cache, Buffer Cache 예시
+
+- 파일에 접근하기 위한 인터페이스는 2가지가 있다.
+    - `read()`, `write()` 시스템 콜
+    - memory-mapped I/O 를 활용한 `mmap()` 시스템콜
+- **Unified Buffer Cache 를 사용하지 않는 File I/O**
+    - `read()`, `write()` 을 사용하는 I/O 방식
+        - 파일 I/O 관련 시스템 콜(`read()`, `write()`)
+        - buffer cache 에서 해당 데이터가 있는지 확인
+        - 없으면 file system 에서 데이터를 읽어온다.
+    - memory-mapped I/O 방식
+        - 파일 I/O 관련 시스템 콜(`mmap()`)
+        - 자신의 주소 공간 중의 일부를 file 에 mapping
+        - 파일 데이터를 buffer cache 에서 읽어온다.
+        - 읽어온 데이터를 page cache 에 copy 해둔다.
+        - 이후 프로세스는 파일 데이터를 메모리에서 읽어올 수 있게 된다. (커널의 도움 없이)
+        - memory-mapped I/O 방식은 일반적인 페이지 방식과 비슷한 흐름으로 진행된다.
+            - 조회하려는 파일 데이터가 page cache 에 존재하지 않으면 page fault 가 발생한다.
+            - CPU 가 OS 로 넘어가서 file system 으로 부터 데이터를 읽어온다.
+- **Unified Buffer Cache 를 사용하는 File I/O**
+    - 위 내용과 거의 동일하지만 page cache 와 buffer cache 의 구분이 없어진다.
+    - memory mapped I/O 에서는 메모리에 매핑된 page cache(=buffer cache)를 사용하고
+    - 일반적인 I/O 에서는 커널 모드에서 page cache(=buffer cache)를 사용한다.
+- Page cache 는 커널 영역에 존재한다.
+    - memory-mapped I/O 에서 운영체제의 도움 없이 page cache 에 접근할 수 있는 이유는 뭘까?
+    - `mmap()` 을 사용하여 파일 데이터를 사용자 프로세스의 가상 메모리 공간에 매핑한다.
+    - 이 매핑은 사용자 프로세스에 page cache 와 연결된 페이지를 사용자 프로세스의 주소 공간에서 사용할 수 있게 만든다.
+
+> Page cache 는 파일 데이터를 메모리에 유지하여 디스크 접근 속도를 줄이고 성능을 최적화하기 위해 만들어진 소프트웨어다. <br/>
+> page cache 는 물리적 메모리(RAM)를 사용하며 운영체제가 이를 논리적으로 관리하는 방식을 말한다. <br/>
+> 하드웨어 캐시는 CPU 와 메모리 간 속도 차이를 줄이기 위해 데이터와 명령어를 캐싱하는 것이 주 목적이다.
+
+#### 가상 메모리의 Code 영역은 Swap area 로 내려가지 않는다.
+
+- 프로세스의 페이지가 Swap area 로 내려갈 때 code 영역은 함께 내려가지 않는다.
+- code 영역은 read-only 다. 따라서 file system 내부에 실행 파일 형태로 저장되어 있다.
+- code 영역은 파일 시스템의 실행 파일이 가상 메모리의 주소 영역에 매핑된 형태로 존재한다.
+
+# Disk Management And Scheduling
+
+### Disk Structure
+
+- **Logical Block**
+    - 디스크의 외부에서 보는 디스크의 단위 정보 공간
+    - 주소를 가진 1차원 배열처럼 취급한다.
+    - 정보를 전송하는 최소 단위
+- **Sector**
+    - Logical block 이 물리적인 디스크에 매핑된 위치다.
+    - Sector 0 은 최외관 실린더의 첫 트랙에 있는 첫 번째 섹터다.
+
+## Disk Management
+
+- **physical formatting** (low-level formatting)
+    - 디스크를 컨트롤러가 읽고 쓸 수 있도록 섹터들로 나누는 과정을 의미한다.
+    - 각 섹터는 header + 실제 data (보통 512 bytes) + trailer 로 구성된다.
+    - header 와 trailer 는 sector number, ECC(Error-Correcting Code) 등의 정보가 저장되며 controller 가 직접 접근 및 운영한다.
+        - ECC 는 data 값을 해쉬 값으로 축약해놓은 값이라고 생각하면 된다.
+        - 데이터를 읽어왔을 때 header, data, trailer 가 모두 불러와지는데 이때 ECC 와 실제 데이터 값을 비교해서 bad sector 가 아닌지 판별할 수 있다.
+- **Partitioning**
+    - 디스크를 하나 이상의 실린더 그룹으로 나누는 과정이다.
+    - OS 는 이것을 독립적 disk 로 취급한다. (logical disk)
+- **Logical formatting**
+    - 파일 시스템을 만드는 것
+    - FAT, Inode, free space 등의 구조를 포함한다.
+- **Booting**
+    - ROM 에 있는 small bootstrap loader 를 실행하는 것이다.
+    - sector 0 (boot block)을 load 해서 실행한다.
+    - sector 0 은 "full Bootstrap loader program"
+    - OS 커널을 디스크에서 load 하여 실행하는 역할을 수행한다.
+
+## Disk Scheduling
+
+- Access time 의 구성
+    - **Seek time**
+        - 헤드를 해당 실린더로 움직이는데 걸린 시간
+    - **Rotational latency**
+        - 헤드가 원하는 섹터에 도달할 때까지 걸리는 회전 지연 시간
+    - **Transfer time**
+        - 실제 데이터의 전송 시간
+- Disk bandwidth
+    - 단위 시간 당 전송된 바이트의 수
+- Disk Scheduling
+    - **seek time 을 최소화하는 것이 목표다**
+        - 실린더 위치를 찾는 요청이 들어오는 대로 처리를 해버리면 비효율적일 수 있다.
+        - 만약 안쪽 실린더와 외곽 실린더를 반복해서 seek 해야 하는 경우 시간이 오래걸릴 수 있다.
+    - Seek time -> seek distance
+
+> 디스크의 track 과 cylinder 는 유사한 의미로 사용된다.
+
+## Disk Scheduling Algorithm
+
+- 큐에 다음과 같은 실린더 위치의 요청이 존재하는 경우 디스크 헤드 53 번에서 시작한 각 알고리즘의 수행 결과는?
+    - 실린더의 위치는 0 ~ 199 까지다.
+    - 98, 183, 37, 122, 14, 124, 65, 67
+- **FCFS**
+    - 요청이 들어온 순서대로 처리한다.
+    - head 는 총 640 cylinders 를 이동한다.
+- **SSTF**(Shortest seek time first)
+    - 현재 헤드 위치에서 가장 가까운 요청을 가장 먼저 처리한다.
+    - Queue 에 새로운 요청이 계속 들어오면 starvation 문제가 발생할 수 있다.
+    - 총 head 의 이동: 236 cylinders
+- **SCAN**(Elevator scheduling)
+    - disk arm 이 디스크의 한쪽 끝에서 다른쪽 끝으로 이동하며 가는 길목에 위치한 모든 요청을 처리한다.
+    - 다른 한쪽 끝에 도달하면 역방향으로 이동하며 오는 길목에 있는 모든 요청을 처리하며 다시 반대쪽 끝으로 이동한다.
+    - 다만 실린더의 위치에 따라 대기 시간이 달라질 수 있다는 문제가 있다.
+        - disk arm 이동 경로의 가운데에 위치한 실린더는 대기 시간이 짧지만, 양 쪽 끝에 위치한 실린더는 대기 시간이 더 길다.
+- **C-SCAN**(Circular Scan)
+    - head 가 단방향으로 이동할 때만 요청을 처리함
+    - 반대 방향으로는 그냥 이동만 함
+    - SCAN 보다는 균일한 대기 시간을 제공한다.
+- **N-SCAN**
+    - SCAN 의 변형 알고리즘
+    - 일단 arm 이 한방향으로 이동하기 시작하면 그 시점 이후에 도착한 job 은 되돌아올때 service
+- **LOOK**, **C-LOOK**
+    - SCAN 이나 C-SCAN 은 헤드가 디스크 끝에서 끝으로 이동
+    - LOOK 과 C-LOOK 은 헤드가 진행중이다가 그 방향에 더 이상 기다리는 요청이 없으면 헤드의 이동 방향을 즉시 반대로 전환한다.
+
+## Swap Space Management
+
+- Disk 를 사용하는 두 가지 이유
+    - memory(DRAM) 의 volatile 한 특성 -> file system
+    - 프로그램 실행을 위한 memory 공간 부족 -> swap space
+- Swap-space
+    - Virtual memory system 애서는 디스크를 memory 의 연장 공간으로 사용한다.
+    - 파일 시스템 내부에 둘 수도 있으나 벼로 partition 사용이 일반적이다.
+        - 공간 효율성보다는 속도 효율성이 우선이다.(Contiguous Allocation)
+        - 일반 파일보다 훨씬 짧은 시간만 존재하고 자주 참조된다.
+        - 따라서 block 의 크기 및 저장 방식이 일반 파일 시스템과 다르다.
+            - 일반 block 의 크기는 보통 512 byte
+            - Swap space 의 block 의 크기는 512 Kbyte
+
+## RAID(Redundant Array of Independent Disks)
+
+- 여러 개의 디스크를 묶어서 사용한다.
+- 사용 목적
+    - 디스크 처리 속도 향상
+        - 여러 디스크에 block 의 내용을 분산 저장한다.
+        - 병렬적으로 데이터를 읽어온다. (interleaving, striping)
+            - 디스크 A 에서 조금, 디스크 B 에서 조금, 디스크 C 에서 조금씩 데이터를 병렬적으로 불러올 수 있다.
+    - 신뢰성(reliability) 향상
+        - 동일 정보를 여러 디스크에 중복 저장한다.
+        - 하나의 디스크가 고장(failure)시 다른 디스크에서 읽어올 수 있다. (Mirroring, Shadowing)
+        - 단순 중복 저장이 아니라 일부 디스크에 parity 를 저장하여 공간의 효율성을 높일 수 있다.
+            - 여기서 말하는 단순 중복 저장이란 데이터를 통째로 전부 복사해서 중복 저장하는 것을 의미한다.
+            - parity 는 오류를 확인하고 복구할 수 있을정도의 데이터만 중복 저장하는 기술을 의미한다.
